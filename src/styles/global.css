@@ -36,3 +36,48 @@ body {
   color: #64748b;
   font-size: 13px;
 }
+
+.wpp-status {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.status-label {
+  font-size: 13px;
+  color: #64748b;
+}
+
+.status-badge {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 12px;
+  text-transform: uppercase;
+}
+
+.status-badge.ready {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.status-badge.not-ready {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.status-badge.authenticated {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.status-badge.not-authenticated {
+  background: #fee2e2;
+  color: #991b1b;
+}

@@ -2,7 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { crx, type ManifestV3Export } from '@crxjs/vite-plugin'
 
-const VERSION = '0.1.2'
+const VERSION = '0.1.5'
 
 const manifest: ManifestV3Export = {
   manifest_version: 3,
@@ -29,7 +29,7 @@ const manifest: ManifestV3Export = {
   ],
   web_accessible_resources: [
     {
-      resources: ['vendor/wppconnect-wa.js'],
+      resources: ['vendor/wppconnect-wa.js', 'vendor/chamalead-page-bridge.js'],
       matches: ['https://web.whatsapp.com/*'],
     },
   ],

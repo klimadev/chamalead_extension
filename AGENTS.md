@@ -12,113 +12,87 @@ Browser Extension (Chrome/Edge/Brave/Opera with Manifest V3) built with:
 ## Build/Lint/Test Commands
 
 ```bash
-# Development - starts Vite dev server (NOT for extension testing)
-npm run dev
-
-# Production build - runs TypeScript compiler + Vite build
+# Production build - runs TypeScript compiler + Vite build (ALWAYS RUN THIS)
 npm run build
 
 # Type checking only
 npm run typecheck
 
-# Linting all files (OPTIONAL - only run if LSP shows no errors)
-npm run lint
+# Development server (NOT for extension testing)
+npm run dev
 
 # Preview production build
 npm run preview
+
+# Linting (ALWAYS run after build)
+npm run lint
 ```
 
-**Note:** No test framework is currently configured. If adding tests, use Vitest.
+**IMPORTANT:** ALWAYS run `npm run build` after any code change. This is the validation step - if it passes, the code is valid. No exceptions.
+
+**Note:** No test framework configured. If adding tests, use Vitest.
 
 ## Versioning Pattern
 
-**ALWAYS increment version** in both files when making code changes:
+**CRITICAL: ALWAYS increment version** in BOTH files when making ANY code changes:
 1. `package.json` - `"version"` field
 2. `vite.config.ts` - `VERSION` constant
 
 Version format: `0.1.x` (start from 0.1.0)
 
 Example:
-```bash
-# Update version in both files to 0.1.3
-```
+- Current: 0.1.5
+- After change: 0.1.6
 
 ## Build Validation
 
-**Run in this order:**
-1. `npm run build` - if it passes, the code is valid
-2. If build fails, check TypeScript errors in your editor (LSP)
-
-**Lint is optional** - only run `npm run lint` if your editor/LSP doesn't already show errors. The build process includes type checking which is sufficient.
+**ALWAYS run this pipeline after any change:**
+1. `npm run lint` - If this fails, fix errors
+2. `npm run build` - If this passes, code is valid
 
 ## Code Style Guidelines
 
 ### TypeScript Configuration
 
 - **Strict mode enabled** - All strict checks must pass
-- **verbatimModuleSyntax** - Use explicit `type` keyword for type-only imports:
-  ```typescript
-  import { type FC, type ReactNode } from 'react'
-  import { useState } from 'react'
-  import { type Settings } from '../types'
-  ```
+- **verbatimModuleSyntax** - Use explicit `type` keyword for type-only imports
+
+```typescript
+import { useState } from 'react'
+import { type FC, type ReactNode } from 'react'
+import { type Settings } from '../types'
+```
 
 ### Naming Conventions
 
 | Element | Convention | Example |
 |---------|------------|---------|
-| Components | PascalCase | `PopupApp`, `SettingsForm`, `Card` |
-| Hooks | prefix `use` | `useExtensionSettings`, `useStorage` |
-| Types/Interfaces | PascalCase | `ExtensionSettings`, `ButtonProps` |
-| Files (components) | PascalCase | `SettingsForm.tsx`, `Card.tsx` |
-| Files (utilities) | kebab-case | `storage.ts`, `api-client.ts` |
-| CSS Classes | kebab-case | `.settings-form`, `.submit-button` |
+| Components | PascalCase | `PopupApp`, `SettingsForm` |
+| Hooks | prefix `use` | `useExtensionSettings` |
+| Types/Interfaces | PascalCase | `ExtensionSettings` |
+| Files (components) | PascalCase | `SettingsForm.tsx` |
+| Files (utilities) | kebab-case | `storage.ts` |
+| CSS Classes | kebab-case | `.settings-form` |
 
 ### Import Order
 
-1. React/React Native imports
+1. React imports
 2. External libraries
 3. Internal imports (relative paths)
 4. Type imports (last)
 
 ```typescript
-import { useState, type FC, type ReactNode } from 'react'
+import { useState } from 'react'
 import { motion } from 'framer-motion'
-
 import { Card } from '../components/ui/Card'
 import { type Settings } from '../shared/types/settings'
 ```
 
-### Component Structure
-
-```typescript
-import { type FC } from 'react'
-import { type ButtonProps } from './Button.types'
-
-export const Button: FC<ButtonProps> = ({ 
-  children, 
-  onClick,
-  variant = 'primary' 
-}) => {
-  return (
-    <button 
-      className={`btn btn-${variant}`}
-      onClick={onClick}
-    >
-      {children}
-    </button>
-  )
-}
-```
-
 ### Error Handling
 
-- Use async/await with proper error handling
-- Wrap async operations in try/catch when user feedback is needed
-- Use TypeScript types for error states
+Use async/await with try/catch when user feedback is needed:
 
 ```typescript
-// Good: with error feedback
 const handleSave = async () => {
   try {
     await saveSettings(settings)
@@ -127,45 +101,116 @@ const handleSave = async () => {
     showError('Failed to save settings')
   }
 }
-
-// Good: for non-critical operations
-const data = await fetchData().catch(() => defaultValue)
 ```
-
-### CSS/Styling
-
-- Use CSS modules or global CSS with kebab-case classes
-- Avoid inline styles except for dynamic values
-- Follow existing patterns in `src/styles/global.css`
 
 ### Type Safety
 
 - Prefer interfaces for object shapes, types for unions/primitives
-- Use `type` keyword for type-only imports
 - Avoid `any` - use `unknown` when type is truly unknown
+
+## WPPConnect WA-JS Integration
+
+### CRITICAL: Context Isolation Problem
+
+Chrome extension content scripts run in an **ISOLATED world** by default, which is SEPARATE from the page's JavaScript context (MAIN world).
+
+- Content scripts CANNOT access `window.WPP` or `globalThis.WPP`
+- The WA-JS library is loaded in the MAIN world (page context)
+- Console DevTools shows `WPP.isReady` working because you're in the MAIN world
+
+### Solution: Page Bridge Pattern
+
+**ALWAYS use the page bridge pattern to access WPP:**
+
+1. **Content Script** (ISOLATED world):
+   - Injects bridge script into page
+   - Sends request via `window.postMessage`
+   - Receives response via `window.addEventListener('message')`
+   - Uses `chrome.runtime.onMessage` to communicate with popup/background
+
+2. **Page Bridge Script** (MAIN world):
+   - Runs in page context (reads `globalThis.WPP`)
+   - Listens for `CHAMALEAD_PAGE_GET_WPP_STATUS` messages
+   - Responds via `window.postMessage` with `CHAMALEAD_PAGE_WPP_STATUS`
+
+3. **Communication Flow:**
+   ```
+   Popup/Background → chrome.runtime.sendMessage → Content Script
+   → window.postMessage → Page Bridge (MAIN world)
+   → reads globalThis.WPP
+   → window.postMessage → Content Script
+   → chrome.runtime.sendResponse → Popup/Background
+   ```
+
+### Required Setup
+
+1. **vite.config.ts** - Add bridge to web_accessible_resources:
+   ```typescript
+   web_accessible_resources: [
+     {
+       resources: ['vendor/wppconnect-wa.js', 'vendor/chamalead-page-bridge.js'],
+       matches: ['https://web.whatsapp.com/*'],
+     },
+   ],
+   ```
+
+2. **content.ts** - Inject bridge + forward requests:
+   - Inject `vendor/chamalead-page-bridge.js`
+   - Use `window.postMessage` with `requestId` for correlation
+   - Set timeout (2-3s) to handle failures gracefully
+
+3. **vendor/chamalead-page-bridge.js** - Bridge script in MAIN world:
+   ```javascript
+   (() => {
+     const REQUEST_TYPE = 'CHAMALEAD_PAGE_GET_WPP_STATUS'
+     const RESPONSE_TYPE = 'CHAMALEAD_PAGE_WPP_STATUS'
+
+     window.addEventListener('message', (event) => {
+       if (event.source !== window) return
+       if (event.data.type !== REQUEST_TYPE) return
+
+       const wpp = globalThis.WPP
+       // ... read WPP status
+
+       window.postMessage({
+         type: RESPONSE_TYPE,
+         requestId: event.data.requestId,
+         isReady: ...,
+         isAuthenticated: ...,
+       }, '*')
+     })
+   })()
+   ```
+
+### Debugging WPP Issues
+
+- **Content Script:** Open DevTools on `web.whatsapp.com` → Console (use dropdown to select content script context)
+- **Page Bridge:** Open DevTools on `web.whatsapp.com` → Console (main world)
+- **Service Worker:** `chrome://extensions` → ChamaLead → Service Worker → Console
+- Use `[ChamaLead]` prefix for all console logs
+
+### Checking WPP Status
+
+```javascript
+// In page bridge (MAIN world)
+const wpp = globalThis.WPP
+const isReady = wpp?.isReady === true
+const isAuthenticated = wpp?.conn?.isAuthenticated?.() === true
+```
 
 ## Project Structure
 
 ```
 src/
-├── app/
-│   ├── popup/           # Popup UI composition
-│   └── options/         # Options page UI composition
-├── components/
-│   └── ui/              # Reusable base UI components
-├── extension/           # Background service worker + content scripts
-│   ├── background.ts
-│   └── content.ts       # WA-JS injection logic
-├── features/            # Business modules by feature
-│   └── settings/
-├── popup/               # Popup entry point
-├── options/             # Options page entry point
-├── shared/
-│   ├── hooks/           # Shared React hooks
-│   ├── lib/             # Utilities (storage, api)
-│   └── types/           # Shared TypeScript types
-├── styles/              # Global CSS
-└── vendor/              # External scripts (wppconnect-wa.js)
+├── app/               # Popup/Options UI composition
+├── components/ui/    # Reusable UI components
+├── extension/        # Background service worker + content scripts
+├── features/         # Business modules by feature
+├── popup/            # Popup entry point
+├── options/          # Options page entry point
+├── shared/           # Hooks, lib, types
+├── styles/           # Global CSS
+└── vendor/           # External scripts (wppconnect-wa.js, chamalead-page-bridge.js)
 ```
 
 ## Entry Points
@@ -179,62 +224,21 @@ src/
 
 ## Browser Extension Specific
 
-### Manifest V3 Configuration
+### Manifest V3
 
 - Use `webextension-polyfill` for cross-browser compatibility
-- Background script runs as service worker (not persistent)
 - Use Chrome Storage API via polyfill: `browser.storage.local`
 
-### Content Script Injection (WPPConnect WA-JS)
+### WA-JS Injection
 
-The extension injects `wppconnect-wa.js` (v3.22.0) into WhatsApp Web:
-
-1. **Static content script** in `vite.config.ts` - runs on `https://web.whatsapp.com/*`
-2. **Injection happens after page full load** (`window.load` event)
-3. **Retry logic**: up to 3 attempts with 2s delay if WPP global not available
-4. **Navigation observer**: re-injects on SPA navigation
-
-Key files:
-- `src/extension/content.ts` - injection logic
-- `public/vendor/wppconnect-wa.js` - WPPConnect library (v3.22.0)
-
-Debug logs look for: `[ChamaLead]` prefix in console
-
-### web_accessible_resources
-
-For the injected script to work, resources must be declared in `vite.config.ts`:
-```typescript
-web_accessible_resources: [
-  {
-    resources: ['vendor/wppconnect-wa.js'],
-    matches: ['https://web.whatsapp.com/*'],
-  },
-],
-```
-
-### Required Permissions
-
-- `storage` - for extension settings
-- `tabs` - for tab operations
-- `scripting` - for programmatic script injection (if needed)
-- `host_permissions` - `https://web.whatsapp.com/*`
-
-## Debugging Content Scripts
-
-1. Open `web.whatsapp.com`
-2. Open DevTools (F12) **on the page** (not extension DevTools!)
-3. Look for `[ChamaLead]` logs in Console
-
-For background/service worker logs:
-1. Go to `chrome://extensions`
-2. Find ChamaLead Extension
-3. Click "Service Worker" → check Console
+- Injected via static content script in `vite.config.ts`
+- Runs on `https://web.whatsapp.com/*`
+- Retry logic: 3 attempts with 2s delay if WPP not available
+- Debug logs: `[ChamaLead]` prefix in console
 
 ## Before Committing
 
-1. Run `npm run build` - ensure production build succeeds
-2. Verify TypeScript types in your editor (LSP)
-3. Increment version in `package.json` AND `vite.config.ts`
-4. (Optional) Run `npm run lint` only if LSP shows errors
-
-No test framework configured yet. If adding tests, prefer Vitest.
+1. Run `npm run lint` - Fix any lint errors
+2. Run `npm run build` - Ensure build succeeds (REQUIRED)
+3. Verify TypeScript types in your editor (LSP)
+4. Increment version in `package.json` AND `vite.config.ts`

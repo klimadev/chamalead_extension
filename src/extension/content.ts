@@ -1,23 +1,25 @@
-console.log('[ChamaLead] Content script loaded, version: 0.1.2')
+console.log('[ChamaLead] Content script loaded, version: 0.1.5')
 console.log('[ChamaLead] Current URL:', window.location.href)
 console.log('[ChamaLead] Document readyState:', document.readyState)
 
 const WA_JS_SCRIPT_PATH = 'vendor/wppconnect-wa.js'
 const WA_JS_SCRIPT_ID = 'chamalead-wppconnect-wa-js'
+const PAGE_BRIDGE_SCRIPT_PATH = 'vendor/chamalead-page-bridge.js'
+const PAGE_BRIDGE_SCRIPT_ID = 'chamalead-page-bridge'
 const MAX_RETRIES = 3
 const RETRY_DELAY_MS = 2000
-
-declare global {
-  interface Window {
-    WPP?: unknown
-  }
-}
+const PAGE_BRIDGE_TIMEOUT_MS = 2500
+const PAGE_REQUEST_TYPE = 'CHAMALEAD_PAGE_GET_WPP_STATUS'
+const PAGE_RESPONSE_TYPE = 'CHAMALEAD_PAGE_WPP_STATUS'
 
 let injectionAttempts = 0
+let pageBridgeReady = false
 
 function checkWppGlobal(): boolean {
-  if (window.WPP) {
-    console.info('[ChamaLead] WPP global detected')
+  const wpp = (globalThis as unknown as Record<string, unknown>).WPP
+  if (wpp) {
+    console.info('[ChamaLead] WPP global detected:', typeof wpp)
+    console.info('[ChamaLead] WPP.isReady:', (wpp as { isReady?: boolean }).isReady)
     return true
   }
   console.warn('[ChamaLead] WPP global not found')
@@ -25,11 +27,6 @@ function checkWppGlobal(): boolean {
 }
 
 function injectWaJs(): void {
-  if (window.WPP) {
-    console.info('[ChamaLead] WA-JS already available before injection')
-    return
-  }
-
   if (document.getElementById(WA_JS_SCRIPT_ID)) {
     console.info('[ChamaLead] WA-JS script tag already exists')
     return
@@ -60,6 +57,29 @@ function injectWaJs(): void {
   const target = document.head ?? document.documentElement
   target.append(script)
   console.info('[ChamaLead] WA-JS script appended to DOM')
+}
+
+function injectPageBridge(): void {
+  if (document.getElementById(PAGE_BRIDGE_SCRIPT_ID)) {
+    pageBridgeReady = true
+    return
+  }
+
+  const script = document.createElement('script')
+  script.id = PAGE_BRIDGE_SCRIPT_ID
+  script.src = chrome.runtime.getURL(PAGE_BRIDGE_SCRIPT_PATH)
+  script.type = 'text/javascript'
+  script.onload = () => {
+    pageBridgeReady = true
+    console.info('[ChamaLead] Page bridge script loaded')
+  }
+  script.onerror = () => {
+    console.error('[ChamaLead] Failed to load page bridge script')
+  }
+
+  const target = document.head ?? document.documentElement
+  target.append(script)
+  console.info('[ChamaLead] Page bridge script appended to DOM')
 }
 
 function scheduleRetry(): void {
@@ -97,6 +117,7 @@ function setupNavigationObserver(): void {
 function injectWaJsAfterFullLoad(): void {
   if (document.readyState === 'complete') {
     console.info('[ChamaLead] Page already fully loaded, injecting WA-JS now')
+    injectPageBridge()
     injectWaJs()
     setupNavigationObserver()
     return
@@ -107,6 +128,7 @@ function injectWaJsAfterFullLoad(): void {
     'load',
     () => {
       console.info('[ChamaLead] Full page load event received, injecting WA-JS now')
+      injectPageBridge()
       injectWaJs()
       setupNavigationObserver()
     },
@@ -116,3 +138,43 @@ function injectWaJsAfterFullLoad(): void {
 
 void chrome.runtime.sendMessage({ type: 'CHAMALEAD_HEALTHCHECK' })
 injectWaJsAfterFullLoad()
+
+console.log('[ChamaLead] Setting up message listener for CHAMALEAD_GET_WPP_STATUS')
+
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.type === 'CHAMALEAD_GET_WPP_STATUS') {
+    if (!pageBridgeReady) {
+      injectPageBridge()
+    }
+
+    const requestId = crypto.randomUUID()
+    const timeoutId = window.setTimeout(() => {
+      window.removeEventListener('message', onPageResponse)
+      sendResponse({ isReady: false, isAuthenticated: false })
+    }, PAGE_BRIDGE_TIMEOUT_MS)
+
+    function onPageResponse(event: MessageEvent): void {
+      if (event.source !== window) {
+        return
+      }
+
+      const data = event.data as Record<string, unknown> | null
+      if (!data || data.type !== PAGE_RESPONSE_TYPE || data.requestId !== requestId) {
+        return
+      }
+
+      window.clearTimeout(timeoutId)
+      window.removeEventListener('message', onPageResponse)
+
+      sendResponse({
+        isReady: data.isReady === true,
+        isAuthenticated: data.isAuthenticated === true,
+      })
+    }
+
+    window.addEventListener('message', onPageResponse)
+    window.postMessage({ type: PAGE_REQUEST_TYPE, requestId }, '*')
+
+    return true
+  }
+})
