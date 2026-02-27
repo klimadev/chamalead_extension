@@ -14,17 +14,18 @@ Base moderna para extensao Chrome/Edge/Brave/Opera com React + TypeScript + Vite
 
 ```txt
 src/
-  app/
-    popup/        # composicao da UI do popup
-    options/      # composicao da pagina de opcoes
-  components/
-    ui/           # componentes base reutilizaveis
-  extension/      # background + content scripts
-  features/       # modulos de negocio por feature
-  options/        # entrypoint da pagina de opcoes
-  popup/          # entrypoint do popup
-  shared/         # hooks, tipos e libs comuns
-  styles/         # estilos globais
+  extension/                  # background + content scripts
+  pages/
+    index.ts                  # API publica das paginas
+    popup/                    # entrada e UI do popup
+    options/                  # entrada e UI da pagina de opcoes
+  features/
+    index.ts                  # API publica de features
+    settings/                 # modulo completo de configuracoes
+    whatsapp/                 # hooks e status do WhatsApp Web
+  ui/                         # componentes visuais reutilizaveis
+    index.ts                  # API publica de UI
+  styles/                     # estilos globais
 ```
 
 ## Scripts

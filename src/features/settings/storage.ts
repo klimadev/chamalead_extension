@@ -1,5 +1,5 @@
 import browser from 'webextension-polyfill'
-import { defaultSettings, type ExtensionSettings } from '../types/settings'
+import { defaultSettings, type ExtensionSettings } from './settings'
 
 const STORAGE_KEY = 'chamalead:settings'
 

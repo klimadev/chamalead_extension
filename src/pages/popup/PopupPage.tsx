@@ -1,9 +1,7 @@
-import { Card } from '../../components/ui/Card'
-import { SettingsForm } from '../../features/settings/SettingsForm'
-import { useExtensionSettings } from '../../shared/hooks/useExtensionSettings'
-import { useWppStatus } from '../../shared/hooks/useWppStatus'
+import { SettingsForm, useExtensionSettings, useWppStatus } from '@/features'
+import { Card } from '@/ui'
 
-export function PopupApp() {
+export function PopupPage() {
   const { settings, isLoading: isSettingsLoading, updateSettings } = useExtensionSettings()
   const { status: wppStatus } = useWppStatus()
 
@@ -22,14 +20,16 @@ export function PopupApp() {
           <div className="wpp-status">
             <div className="status-row">
               <span className="status-label">Status WPP:</span>
-            <span className={`status-badge ${wppStatus.isReady ? 'ready' : 'not-ready'}`}>
-              {wppStatus.isReady ? 'Pronto' : 'Aguardando...'}
-            </span>
+              <span className={`status-badge ${wppStatus.isReady ? 'ready' : 'not-ready'}`}>
+                {wppStatus.isReady ? 'Pronto' : 'Aguardando...'}
+              </span>
             </div>
             {wppStatus.isReady && (
               <div className="status-row">
                 <span className="status-label">Autenticado:</span>
-                <span className={`status-badge ${wppStatus.isAuthenticated ? 'authenticated' : 'not-authenticated'}`}>
+                <span
+                  className={`status-badge ${wppStatus.isAuthenticated ? 'authenticated' : 'not-authenticated'}`}
+                >
                   {wppStatus.isAuthenticated ? 'Sim' : 'Nao'}
                 </span>
               </div>

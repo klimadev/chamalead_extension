@@ -78,14 +78,14 @@ import { type Settings } from '../types'
 
 1. React imports
 2. External libraries
-3. Internal imports (relative paths)
+3. Internal imports (prefer `@/` alias)
 4. Type imports (last)
 
 ```typescript
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Card } from '../components/ui/Card'
-import { type Settings } from '../shared/types/settings'
+import { Card } from '@/ui'
+import { type ExtensionSettings } from '@/features'
 ```
 
 ### Error Handling
@@ -202,23 +202,27 @@ const isAuthenticated = wpp?.conn?.isAuthenticated?.() === true
 
 ```
 src/
-├── app/               # Popup/Options UI composition
-├── components/ui/    # Reusable UI components
-├── extension/        # Background service worker + content scripts
-├── features/         # Business modules by feature
-├── popup/            # Popup entry point
-├── options/          # Options page entry point
-├── shared/           # Hooks, lib, types
-├── styles/           # Global CSS
-└── vendor/           # External scripts (wppconnect-wa.js, chamalead-page-bridge.js)
+├── extension/         # Background service worker + content scripts
+├── pages/             # Popup/Options entries and page composition
+├── features/          # Business modules by feature
+├── ui/                # Reusable UI components
+└── styles/            # Global CSS
+
+Barrels:
+- `src/pages/index.ts`
+- `src/features/index.ts`
+- `src/ui/index.ts`
+
+public/
+└── vendor/            # External scripts (wppconnect-wa.js, chamalead-page-bridge.js)
 ```
 
 ## Entry Points
 
 | Page | Entry | Output |
 |------|-------|--------|
-| Popup | `src/popup/main.tsx` | `index.html` |
-| Options | `src/options/main.tsx` | `options.html` |
+| Popup | `src/pages/popup/index.tsx` | `index.html` |
+| Options | `src/pages/options/index.tsx` | `options.html` |
 | Background | `src/extension/background.ts` | Service Worker |
 | Content Script | `src/extension/content.ts` | Injected script |
 

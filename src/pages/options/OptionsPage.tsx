@@ -1,8 +1,7 @@
-import { Card } from '../../components/ui/Card'
-import { SettingsForm } from '../../features/settings/SettingsForm'
-import { useExtensionSettings } from '../../shared/hooks/useExtensionSettings'
+import { SettingsForm, useExtensionSettings } from '@/features'
+import { Card } from '@/ui'
 
-export function OptionsApp() {
+export function OptionsPage() {
   const { settings, isLoading, updateSettings } = useExtensionSettings()
 
   if (isLoading) {

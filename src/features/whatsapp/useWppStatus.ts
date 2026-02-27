@@ -17,7 +17,10 @@ export function useWppStatus() {
 
       try {
         const tabs = await chrome.tabs.query({ currentWindow: true })
-        console.log('[ChamaLead:hook] All tabs:', tabs.map(t => ({ url: t.url, id: t.id })))
+        console.log(
+          '[ChamaLead:hook] All tabs:',
+          tabs.map((tab) => ({ url: tab.url, id: tab.id })),
+        )
 
         const waTab = tabs.find((tab) => tab.url?.includes('web.whatsapp.com'))
         console.log('[ChamaLead:hook] WhatsApp tab:', waTab)
@@ -38,16 +41,18 @@ export function useWppStatus() {
           isReady: response?.isReady ?? false,
           isAuthenticated: response?.isAuthenticated ?? false,
         })
-      } catch (e) {
-        console.error('[ChamaLead:hook] Error:', e)
+      } catch (error) {
+        console.error('[ChamaLead:hook] Error:', error)
         setStatus({ isReady: false, isAuthenticated: false })
       }
     }
 
-    checkStatus()
-    const interval = setInterval(checkStatus, 2000)
+    void checkStatus()
+    const interval = window.setInterval(() => {
+      void checkStatus()
+    }, 2000)
 
-    return () => clearInterval(interval)
+    return () => window.clearInterval(interval)
   }, [])
 
   return { status }

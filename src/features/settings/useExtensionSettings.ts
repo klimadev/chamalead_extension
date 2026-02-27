@@ -1,9 +1,6 @@
 import { useEffect, useState } from 'react'
-import {
-  getSettings,
-  saveSettings,
-} from '../lib/storage'
-import { defaultSettings, type ExtensionSettings } from '../types/settings'
+import { getSettings, saveSettings } from './storage'
+import { defaultSettings, type ExtensionSettings } from './settings'
 
 export function useExtensionSettings() {
   const [settings, setSettings] = useState<ExtensionSettings>(defaultSettings)
@@ -17,9 +14,7 @@ export function useExtensionSettings() {
     })()
   }, [])
 
-  const updateSettings = async (
-    nextSettings: ExtensionSettings,
-  ): Promise<void> => {
+  const updateSettings = async (nextSettings: ExtensionSettings): Promise<void> => {
     setSettings(nextSettings)
     await saveSettings(nextSettings)
   }

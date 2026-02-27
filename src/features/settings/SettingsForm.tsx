@@ -1,7 +1,6 @@
 import { useState } from 'react'
-import { Button } from '../../components/ui/Button'
-import { Switch } from '../../components/ui/Switch'
-import type { ExtensionSettings } from '../../shared/types/settings'
+import { Button, Switch } from '@/ui'
+import { type ExtensionSettings } from './settings'
 
 type SettingsFormProps = {
   initialSettings: ExtensionSettings
