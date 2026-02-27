@@ -2,13 +2,15 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { crx, type ManifestV3Export } from '@crxjs/vite-plugin'
 
+const VERSION = '0.1.2'
+
 const manifest: ManifestV3Export = {
   manifest_version: 3,
   name: 'ChamaLead Extension',
   description: 'Base moderna e componetizada para uma extensao grande.',
-  version: '0.1.0',
-  permissions: ['storage', 'tabs'],
-  host_permissions: ['<all_urls>'],
+  version: VERSION,
+  permissions: ['storage', 'tabs', 'scripting'],
+  host_permissions: ['https://web.whatsapp.com/*'],
   background: {
     service_worker: 'src/extension/background.ts',
     type: 'module',
@@ -21,8 +23,14 @@ const manifest: ManifestV3Export = {
   content_scripts: [
     {
       js: ['src/extension/content.ts'],
-      matches: ['<all_urls>'],
+      matches: ['https://web.whatsapp.com/*'],
       run_at: 'document_idle',
+    },
+  ],
+  web_accessible_resources: [
+    {
+      resources: ['vendor/wppconnect-wa.js'],
+      matches: ['https://web.whatsapp.com/*'],
     },
   ],
 }

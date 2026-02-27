@@ -1,0 +1,18 @@
+{
+  "version": "1.0",
+  "last_updated": "2026-02-27T03:48:42Z",
+  "libraries": {
+    "wppconnect-wa-js": {
+      "files": [
+        {
+          "filename": "latest-release-browser-asset.md",
+          "topic": "latest stable release tag and browser-ready built asset",
+          "tech_stack": "browser extension script injection",
+          "fetched": "2026-02-27T03:48:42Z",
+          "source": "GitHub Releases API (live)",
+          "official_docs": "https://github.com/wppconnect-team/wa-js/releases"
+        }
+      ]
+    }
+  }
+}
