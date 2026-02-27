@@ -1,4 +1,4 @@
-console.log('[ChamaLead] Content script loaded, version: 0.1.9')
+console.log('[ChamaLead] Content script loaded, version: 0.1.11')
 console.log('[ChamaLead] Current URL:', window.location.href)
 console.log('[ChamaLead] Document readyState:', document.readyState)
 
@@ -9,8 +9,10 @@ const PAGE_BRIDGE_SCRIPT_ID = 'chamalead-page-bridge'
 const MAX_RETRIES = 3
 const RETRY_DELAY_MS = 2000
 const PAGE_BRIDGE_TIMEOUT_MS = 2500
-const PAGE_REQUEST_TYPE = 'CHAMALEAD_PAGE_GET_WPP_STATUS'
-const PAGE_RESPONSE_TYPE = 'CHAMALEAD_PAGE_WPP_STATUS'
+const PAGE_STATUS_REQUEST_TYPE = 'CHAMALEAD_PAGE_GET_WPP_STATUS'
+const PAGE_STATUS_RESPONSE_TYPE = 'CHAMALEAD_PAGE_WPP_STATUS'
+const PAGE_CHATS_REQUEST_TYPE = 'CHAMALEAD_PAGE_GET_WPP_CHATS'
+const PAGE_CHATS_RESPONSE_TYPE = 'CHAMALEAD_PAGE_WPP_CHATS'
 
 let injectionAttempts = 0
 let pageBridgeReady = false
@@ -142,15 +144,23 @@ injectWaJsAfterFullLoad()
 console.log('[ChamaLead] Setting up message listener for CHAMALEAD_GET_WPP_STATUS')
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message?.type === 'CHAMALEAD_GET_WPP_STATUS') {
+  if (message?.type === 'CHAMALEAD_GET_WPP_STATUS' || message?.type === 'CHAMALEAD_GET_WPP_CHATS') {
     if (!pageBridgeReady) {
       injectPageBridge()
     }
 
+    const isChatsRequest = message?.type === 'CHAMALEAD_GET_WPP_CHATS'
+    const pageRequestType = isChatsRequest ? PAGE_CHATS_REQUEST_TYPE : PAGE_STATUS_REQUEST_TYPE
+    const pageResponseType = isChatsRequest ? PAGE_CHATS_RESPONSE_TYPE : PAGE_STATUS_RESPONSE_TYPE
+
     const requestId = crypto.randomUUID()
     const timeoutId = window.setTimeout(() => {
       window.removeEventListener('message', onPageResponse)
-      sendResponse({ isReady: false, isAuthenticated: false })
+      sendResponse(
+        isChatsRequest
+          ? { chats: [], total: 0, limitedTo: 100 }
+          : { isReady: false, isAuthenticated: false },
+      )
     }, PAGE_BRIDGE_TIMEOUT_MS)
 
     function onPageResponse(event: MessageEvent): void {
@@ -159,12 +169,27 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       }
 
       const data = event.data as Record<string, unknown> | null
-      if (!data || data.type !== PAGE_RESPONSE_TYPE || data.requestId !== requestId) {
+      if (!data || data.type !== pageResponseType || data.requestId !== requestId) {
         return
       }
 
       window.clearTimeout(timeoutId)
       window.removeEventListener('message', onPageResponse)
+
+      if (isChatsRequest) {
+        const chats = Array.isArray(data.chats) ? data.chats : []
+        const total = typeof data.total === 'number' ? data.total : chats.length
+        const limitedTo = typeof data.limitedTo === 'number' ? data.limitedTo : 100
+
+        console.log('[ChamaLead:content] Chats response', {
+          total,
+          limited: chats.length,
+          sample: chats[0] ?? null,
+        })
+
+        sendResponse({ chats, total, limitedTo })
+        return
+      }
 
       sendResponse({
         isReady: data.isReady === true,
@@ -173,7 +198,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     }
 
     window.addEventListener('message', onPageResponse)
-    window.postMessage({ type: PAGE_REQUEST_TYPE, requestId }, '*')
+    window.postMessage({ type: pageRequestType, requestId }, '*')
 
     return true
   }

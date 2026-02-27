@@ -1,17 +1,9 @@
-import { SettingsForm, useExtensionSettings, useWppStatus } from '@/features'
+import { useWppChats, useWppStatus } from '@/features'
 import { Card } from '@/ui'
 
 export function PopupPage() {
-  const { settings, isLoading: isSettingsLoading, updateSettings } = useExtensionSettings()
   const { status: wppStatus } = useWppStatus()
-
-  if (isSettingsLoading) {
-    return (
-      <main className="page">
-        <p className="muted">Carregando...</p>
-      </main>
-    )
-  }
+  const { chats, total, limitedTo } = useWppChats(wppStatus)
 
   return (
     <main className="page" style={{ width: 360 }}>
@@ -37,9 +29,44 @@ export function PopupPage() {
           </div>
         </Card>
 
-        <Card title="Configuracoes">
-          <SettingsForm initialSettings={settings} onSave={updateSettings} />
-        </Card>
+        {wppStatus.isReady && wppStatus.isAuthenticated && (
+          <Card title="Conversas">
+            <div className="contacts-panel">
+              {chats.length === 0 && total === 0 ? (
+                <p className="muted">Carregando conversas...</p>
+              ) : chats.length === 0 ? (
+                <p className="muted">Nenhuma conversa disponivel.</p>
+              ) : (
+                <>
+                  <p className="muted contacts-meta">
+                    {total > limitedTo ? `+ de ${limitedTo}` : total} conversas
+                  </p>
+                  <ul className="contacts-list">
+                    {chats.map((chat) => {
+                      const displayName = chat.name || chat.id
+
+                      return (
+                        <li key={chat.id} className="contact-item">
+                          <div className="contact-name-row">
+                            <strong className="contact-name">{displayName}</strong>
+                            {chat.isGroup && <span className="contact-tag">Grupo</span>}
+                            {chat.isNewsletter && <span className="contact-tag">Newsletter</span>}
+                            {chat.unreadCount > 0 && (
+                              <span className="contact-unread">{chat.unreadCount}</span>
+                            )}
+                          </div>
+                          {chat.lastMessage && (
+                            <span className="contact-last-message">{chat.lastMessage}</span>
+                          )}
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </>
+              )}
+            </div>
+          </Card>
+        )}
       </div>
     </main>
   )

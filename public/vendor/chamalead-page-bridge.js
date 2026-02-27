@@ -1,6 +1,9 @@
 (() => {
-  const REQUEST_TYPE = 'CHAMALEAD_PAGE_GET_WPP_STATUS'
-  const RESPONSE_TYPE = 'CHAMALEAD_PAGE_WPP_STATUS'
+  const STATUS_REQUEST_TYPE = 'CHAMALEAD_PAGE_GET_WPP_STATUS'
+  const STATUS_RESPONSE_TYPE = 'CHAMALEAD_PAGE_WPP_STATUS'
+  const CHATS_REQUEST_TYPE = 'CHAMALEAD_PAGE_GET_WPP_CHATS'
+  const CHATS_RESPONSE_TYPE = 'CHAMALEAD_PAGE_WPP_CHATS'
+  const CHATS_LIMIT = 100
 
   function getWppStatus() {
     const wpp = globalThis.WPP
@@ -27,25 +30,111 @@
     return { isReady, isAuthenticated }
   }
 
+  function getChats() {
+    const wpp = globalThis.WPP
+    const status = getWppStatus()
+
+    if (!status.isReady || !status.isAuthenticated) {
+      return { chats: [], total: 0, limitedTo: CHATS_LIMIT }
+    }
+
+    const listMethod = wpp?.chat?.list
+
+    const fetchChats =
+      typeof listMethod === 'function'
+        ? listMethod.bind(wpp.chat)
+        : null
+
+    if (!fetchChats) {
+      return { chats: [], total: 0, limitedTo: CHATS_LIMIT }
+    }
+
+    return Promise.resolve(fetchChats({ count: CHATS_LIMIT }))
+      .then((chats) => {
+        const normalized = Array.isArray(chats) ? chats : []
+        
+        const sorted = normalized.sort((a, b) => {
+          const timeA = typeof a?.t === 'number' ? a.t : 0
+          const timeB = typeof b?.t === 'number' ? b.t : 0
+          return timeB - timeA
+        })
+        
+        const mapped = sorted.slice(0, CHATS_LIMIT).map((chat) => {
+          const raw = chat?.rawJson || {}
+          const contact = raw.contact || {}
+          
+          const name = 
+            chat?.name ||
+            contact.pushname ||
+            contact.notifyName ||
+            raw.notifyName ||
+            ''
+          
+          return {
+            id: String(chat?.id?._serialized || chat?.id || ''),
+            name,
+            isGroup: chat?.isGroup === true,
+            isNewsletter: chat?.isNewsletter === true,
+            lastMessage: chat?.lastMessage?.body || '',
+            unreadCount: typeof chat?.unreadCount === 'number' ? chat.unreadCount : 0,
+          }
+        })
+
+        console.log('[ChamaLead:bridge] Chats fetched', {
+          total: normalized.length,
+          limited: mapped.length,
+          sample: mapped[0] || null,
+        })
+
+        return {
+          chats: mapped.filter((chat) => chat.id),
+          total: normalized.length,
+          limitedTo: CHATS_LIMIT,
+        }
+      })
+      .catch((error) => {
+        console.log('[ChamaLead:bridge] Failed to fetch chats', error)
+        return { chats: [], total: 0, limitedTo: CHATS_LIMIT }
+      })
+  }
+
   window.addEventListener('message', (event) => {
     if (event.source !== window) {
       return
     }
 
     const data = event.data
-    if (!data || data.type !== REQUEST_TYPE) {
+    if (!data || typeof data.type !== 'string') {
       return
     }
 
-    const status = getWppStatus()
-    window.postMessage(
-      {
-        type: RESPONSE_TYPE,
-        requestId: data.requestId,
-        isReady: status.isReady,
-        isAuthenticated: status.isAuthenticated,
-      },
-      '*',
-    )
+    if (data.type === STATUS_REQUEST_TYPE) {
+      const status = getWppStatus()
+      window.postMessage(
+        {
+          type: STATUS_RESPONSE_TYPE,
+          requestId: data.requestId,
+          isReady: status.isReady,
+          isAuthenticated: status.isAuthenticated,
+        },
+        '*',
+      )
+      return
+    }
+
+    if (data.type === CHATS_REQUEST_TYPE) {
+      void Promise.resolve(getChats()).then((result) => {
+        window.postMessage(
+          {
+            type: CHATS_RESPONSE_TYPE,
+            requestId: data.requestId,
+            chats: result.chats,
+            total: result.total,
+            limitedTo: result.limitedTo,
+          },
+          '*',
+        )
+      })
+    }
   })
 })()
