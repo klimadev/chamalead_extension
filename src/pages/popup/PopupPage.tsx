@@ -1,12 +1,19 @@
-import { useWppChats, useWppStatus } from '@/features'
-import { Card } from '@/ui'
+import { useState } from 'react'
+import { BulkSendForm, useWppChats, useWppStatus } from '@/features'
+import { Card, Tabs, type TabItem } from '@/ui'
+
+const TABS: TabItem[] = [
+  { id: 'chats', label: 'Conversas' },
+  { id: 'bulk', label: 'Envio Bulk' },
+]
 
 export function PopupPage() {
+  const [activeTab, setActiveTab] = useState('chats')
   const { status: wppStatus } = useWppStatus()
   const { chats, total, limitedTo } = useWppChats(wppStatus)
 
   return (
-    <main className="page" style={{ width: 360 }}>
+    <main className="page" style={{ width: 380 }}>
       <div className="stack">
         <Card title="ChamaLead">
           <div className="wpp-status">
@@ -29,7 +36,9 @@ export function PopupPage() {
           </div>
         </Card>
 
-        {wppStatus.isReady && wppStatus.isAuthenticated && (
+        <Tabs tabs={TABS} activeTab={activeTab} onTabChange={setActiveTab} />
+
+        {activeTab === 'chats' && (
           <Card title="Conversas">
             <div className="contacts-panel">
               {chats.length === 0 && total === 0 ? (
@@ -65,6 +74,18 @@ export function PopupPage() {
                 </>
               )}
             </div>
+          </Card>
+        )}
+
+        {activeTab === 'bulk' && (
+          <Card title="Envio em Massa">
+            {wppStatus.isReady && wppStatus.isAuthenticated ? (
+              <BulkSendForm />
+            ) : (
+              <p className="muted">
+                Conecte-se ao WhatsApp primeiro para usar o envio em massa.
+              </p>
+            )}
           </Card>
         )}
       </div>

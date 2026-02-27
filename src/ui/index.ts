@@ -1,3 +1,5 @@
 export { Button } from './Button'
 export { Card } from './Card'
 export { Switch } from './Switch'
+export { Tabs } from './Tabs'
+export type { TabItem } from './Tabs'

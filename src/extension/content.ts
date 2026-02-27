@@ -1,4 +1,4 @@
-console.log('[ChamaLead] Content script loaded, version: 0.1.11')
+console.log('[ChamaLead] Content script loaded, version: 0.1.12')
 console.log('[ChamaLead] Current URL:', window.location.href)
 console.log('[ChamaLead] Document readyState:', document.readyState)
 
@@ -13,6 +13,8 @@ const PAGE_STATUS_REQUEST_TYPE = 'CHAMALEAD_PAGE_GET_WPP_STATUS'
 const PAGE_STATUS_RESPONSE_TYPE = 'CHAMALEAD_PAGE_WPP_STATUS'
 const PAGE_CHATS_REQUEST_TYPE = 'CHAMALEAD_PAGE_GET_WPP_CHATS'
 const PAGE_CHATS_RESPONSE_TYPE = 'CHAMALEAD_PAGE_WPP_CHATS'
+const PAGE_SEND_MESSAGE_REQUEST_TYPE = 'CHAMALEAD_PAGE_SEND_MESSAGE'
+const PAGE_SEND_MESSAGE_RESPONSE_TYPE = 'CHAMALEAD_PAGE_SEND_MESSAGE_RESULT'
 
 let injectionAttempts = 0
 let pageBridgeReady = false
@@ -199,6 +201,56 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
     window.addEventListener('message', onPageResponse)
     window.postMessage({ type: pageRequestType, requestId }, '*')
+
+    return true
+  }
+
+  if (message?.type === 'CHAMALEAD_SEND_MESSAGE') {
+    if (!pageBridgeReady) {
+      injectPageBridge()
+    }
+
+    const phoneNumber = message.phoneNumber
+    const messageText = message.message
+
+    if (!phoneNumber || !messageText) {
+      sendResponse({ success: false, error: 'Missing phoneNumber or message' })
+      return true
+    }
+
+    const requestId = crypto.randomUUID()
+    const timeoutId = window.setTimeout(() => {
+      window.removeEventListener('message', onSendResponse)
+      sendResponse({ success: false, error: 'Timeout' })
+    }, PAGE_BRIDGE_TIMEOUT_MS)
+
+    function onSendResponse(event: MessageEvent): void {
+      if (event.source !== window) {
+        return
+      }
+
+      const data = event.data as Record<string, unknown> | null
+      if (!data || data.type !== PAGE_SEND_MESSAGE_RESPONSE_TYPE || data.requestId !== requestId) {
+        return
+      }
+
+      window.clearTimeout(timeoutId)
+      window.removeEventListener('message', onSendResponse)
+
+      console.log('[ChamaLead:content] Send message response', data)
+      sendResponse({
+        success: data.success === true,
+        error: data.error,
+      })
+    }
+
+    window.addEventListener('message', onSendResponse)
+    window.postMessage({
+      type: PAGE_SEND_MESSAGE_REQUEST_TYPE,
+      requestId,
+      phoneNumber,
+      message: messageText,
+    }, '*')
 
     return true
   }
