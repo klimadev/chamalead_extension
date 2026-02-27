@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 
-export interface BulkSendProgress {
+export interface BulkIaSendProgress {
   total: number
   sent: number
   failed: number
@@ -66,8 +66,35 @@ async function sendMessageToTab(phoneNumber: string, message: string): Promise<S
   }
 }
 
-export function useBulkSend() {
-  const [progress, setProgress] = useState<BulkSendProgress>({
+async function fetchMessageFromWebhook(phoneNumber: string): Promise<string | null> {
+  try {
+    const response = await fetch('http://177.153.38.26:5678/webhook/prospectchamalead', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ phone: phoneNumber, prospect: true }),
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`)
+    }
+
+    const data = await response.json()
+
+    if (Array.isArray(data) && data.length > 0) {
+      return data[0].output || data[0].message || data[0].msg || data[0].text || null
+    }
+
+    return data.output || data.message || data.msg || data.text || data.content || null
+  } catch (error) {
+    console.error('[ChamaLead] Webhook error:', error)
+    return null
+  }
+}
+
+export function useBulkIaSend() {
+  const [progress, setProgress] = useState<BulkIaSendProgress>({
     total: 0,
     sent: 0,
     failed: 0,
@@ -82,8 +109,8 @@ export function useBulkSend() {
     setLogs((prev) => [...prev, `[${timestamp}] ${message}`])
   }, [])
 
-  const startBulkSend = useCallback(
-    async (numbersText: string, messageText: string) => {
+  const startBulkIaSend = useCallback(
+    async (numbersText: string) => {
       const numbers = numbersText
         .split(',')
         .map((n) => n.trim())
@@ -103,15 +130,32 @@ export function useBulkSend() {
         status: 'sending',
       })
 
-      addLog(`Iniciando envio para ${numbers.length} números...`)
+      addLog(`Iniciando Bulk IA para ${numbers.length} números...`)
+      addLog('↪️ Buscando mensagem via webhook para cada lead...')
 
       for (let i = 0; i < numbers.length; i++) {
         const phone = numbers[i]
         setProgress((prev) => ({ ...prev, currentPhone: phone }))
 
-        addLog(`Enviando para ${phone} (${i + 1}/${numbers.length})...`)
+        addLog(`[${i + 1}/${numbers.length}] Buscando mensagem para ${phone}...`)
 
-        const result = await sendMessageToTab(phone, messageText)
+        const message = await fetchMessageFromWebhook(phone)
+
+        if (!message) {
+          setProgress((prev) => ({ ...prev, failed: prev.failed + 1 }))
+          addLog(`✗ Falha: Sem resposta do webhook para ${phone}`)
+          if (i < numbers.length - 1) {
+            const delay = getRandomDelay()
+            addLog(`Aguardando ${(delay / 1000).toFixed(1)}s...`)
+            await new Promise((resolve) => setTimeout(resolve, delay))
+          }
+          continue
+        }
+
+        addLog(`Mensagem obtida: "${message.substring(0, 50)}${message.length > 50 ? '...' : ''}"`)
+        addLog(`Enviando para ${phone}...`)
+
+        const result = await sendMessageToTab(phone, message)
 
         if (result.success) {
           setProgress((prev) => ({ ...prev, sent: prev.sent + 1 }))
@@ -140,12 +184,12 @@ export function useBulkSend() {
     [addLog],
   )
 
-  const pauseBulkSend = useCallback(() => {
+  const pauseBulkIaSend = useCallback(() => {
     setProgress((prev) => ({ ...prev, status: 'paused' }))
     addLog('Envio pausado')
   }, [addLog])
 
-  const resetBulkSend = useCallback(() => {
+  const resetBulkIaSend = useCallback(() => {
     setProgress({
       total: 0,
       sent: 0,
@@ -160,8 +204,8 @@ export function useBulkSend() {
   return {
     progress,
     logs,
-    startBulkSend,
-    pauseBulkSend,
-    resetBulkSend,
+    startBulkIaSend,
+    pauseBulkIaSend,
+    resetBulkIaSend,
   }
 }

@@ -322,3 +322,26 @@ body {
   flex-direction: column;
   gap: 2px;
 }
+
+.bulk-ia-info {
+  font-size: 11px;
+  color: #64748b;
+  background: #f1f5f9;
+  border-radius: 6px;
+  padding: 10px;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bulk-ia-info p {
+  margin: 0;
+}
+
+.bulk-ia-info code {
+  background: #e2e8f0;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 10px;
+}
