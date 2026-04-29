@@ -17,21 +17,34 @@ function getRandomDelay(): number {
   return Math.floor(Math.random() * (11000 - 6000 + 1)) + 6000
 }
 
-function formatPhoneNumber(phone: string): string {
+export function formatPhoneNumber(phone: string): string {
   const cleaned = phone.replace(/\D/g, '')
-  if (cleaned.length === 10) {
-    return `55${cleaned}`
+  
+  // Remove leading zeros
+  const withoutLeadingZeros = cleaned.replace(/^0+/, '')
+  
+  // If empty after cleaning, return empty
+  if (!withoutLeadingZeros) return ''
+  
+  // Already has 55 (Brazil) prefix
+  if (withoutLeadingZeros.startsWith('55')) {
+    return withoutLeadingZeros
   }
-  if (cleaned.length === 11 && cleaned.startsWith('0')) {
-    return `55${cleaned.slice(1)}`
+  
+  // Brazilian mobile: 11 digits (DDD 2 + 9-digit number) - add 55
+  // Brazilian landline: 10 digits (DDD 2 + 8-digit number) - add 55
+  if (withoutLeadingZeros.length === 10 || withoutLeadingZeros.length === 11) {
+    return `55${withoutLeadingZeros}`
   }
-  if (cleaned.length === 12 && cleaned.startsWith('55')) {
-    return cleaned
+  
+  // If 8-9 digits (missing DDD), we can't fix automatically
+  // Just add 55 and let the user verify
+  if (withoutLeadingZeros.length >= 8 && withoutLeadingZeros.length <= 9) {
+    return `55${withoutLeadingZeros}`
   }
-  if (cleaned.length === 13 && cleaned.startsWith('55')) {
-    return cleaned
-  }
-  return cleaned
+  
+  // Return as-is if we can't determine format
+  return withoutLeadingZeros
 }
 
 function splitMessageByDoubleNewline(message: string): string[] {
