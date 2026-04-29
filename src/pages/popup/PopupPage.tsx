@@ -1,11 +1,10 @@
 import { useState } from 'react'
-import { BulkSendForm, BulkIaForm, useWppChats, useWppStatus } from '@/features'
+import { BulkSendForm, useWppChats, useWppStatus } from '@/features'
 import { Card, Tabs, type TabItem } from '@/ui'
 
 const TABS: TabItem[] = [
   { id: 'chats', label: 'Conversas' },
   { id: 'bulk', label: 'Envio Bulk' },
-  { id: 'bulk-ia', label: 'Bulk IA' },
 ]
 
 export function PopupPage() {
@@ -90,17 +89,7 @@ export function PopupPage() {
           </Card>
         )}
 
-        {activeTab === 'bulk-ia' && (
-          <Card title="Bulk IA">
-            {wppStatus.isReady && wppStatus.isAuthenticated ? (
-              <BulkIaForm />
-            ) : (
-              <p className="muted">
-                Conecte-se ao WhatsApp primeiro para usar o Bulk IA.
-              </p>
-            )}
-          </Card>
-        )}
+
       </div>
     </main>
   )

@@ -36,7 +36,7 @@ npm run lint
 
 **CRITICAL: ALWAYS increment version** in BOTH files when making ANY code changes:
 1. `package.json` - `"version"` field
-2. `vite.config.ts` - `VERSION` constant
+2. `vite.config.ts` - `VERSION` constant (this sets the manifest version)
 
 Version format: `0.1.x` (start from 0.1.0)
 
