@@ -5,6 +5,8 @@
   const CHATS_RESPONSE_TYPE = 'CHAMALEAD_PAGE_WPP_CHATS'
   const SEND_MESSAGE_REQUEST_TYPE = 'CHAMALEAD_PAGE_SEND_MESSAGE'
   const SEND_MESSAGE_RESPONSE_TYPE = 'CHAMALEAD_PAGE_SEND_MESSAGE_RESULT'
+  const SEND_AUDIO_REQUEST_TYPE = 'CHAMALEAD_PAGE_SEND_AUDIO'
+  const SEND_AUDIO_RESPONSE_TYPE = 'CHAMALEAD_PAGE_SEND_AUDIO_RESULT'
   const CHATS_LIMIT = 100
 
   function getWppStatus() {
@@ -125,6 +127,42 @@
     }
   }
 
+  async function sendAudio(phoneNumber, audioBase64) {
+    const wpp = globalThis.WPP
+    const status = getWppStatus()
+
+    if (!status.isReady || !status.isAuthenticated) {
+      return { success: false, error: 'WhatsApp not ready or not authenticated' }
+    }
+
+    try {
+      const chatId = `${phoneNumber}@c.us`
+      const sendMethod = wpp?.chat?.sendFileMessage
+
+      if (!sendMethod) {
+        return { success: false, error: 'Send method not available' }
+      }
+
+      // Ensure audioBase64 is a proper data URL with correct MIME type
+      let mediaData = audioBase64
+      if (mediaData && !mediaData.startsWith('data:')) {
+        // If raw base64 without data URL prefix, assume audio/ogg for PTT
+        mediaData = `data:audio/ogg;base64,${mediaData}`
+      }
+
+      const result = await sendMethod.call(wpp.chat, chatId, mediaData, {
+        type: 'audio',
+        isPtt: true,
+        waveform: true
+      })
+      console.log('[ChamaLead:bridge] Audio sent to', phoneNumber, result)
+      return { success: true }
+    } catch (error) {
+      console.log('[ChamaLead:bridge] Failed to send audio', error)
+      return { success: false, error: String(error) }
+    }
+  }
+
   window.addEventListener('message', (event) => {
     if (event.source !== window) {
       return
@@ -185,6 +223,37 @@
         window.postMessage(
           {
             type: SEND_MESSAGE_RESPONSE_TYPE,
+            requestId: data.requestId,
+            success: result.success,
+            error: result.error,
+          },
+          '*',
+        )
+      })
+      return
+    }
+
+    if (data.type === SEND_AUDIO_REQUEST_TYPE) {
+      const phoneNumber = data.phoneNumber
+      const audioBase64 = data.audioBase64
+
+      if (!phoneNumber || !audioBase64) {
+        window.postMessage(
+          {
+            type: SEND_AUDIO_RESPONSE_TYPE,
+            requestId: data.requestId,
+            success: false,
+            error: 'Missing phoneNumber or audioBase64',
+          },
+          '*',
+        )
+        return
+      }
+
+      void Promise.resolve(sendAudio(phoneNumber, audioBase64)).then((result) => {
+        window.postMessage(
+          {
+            type: SEND_AUDIO_RESPONSE_TYPE,
             requestId: data.requestId,
             success: result.success,
             error: result.error,

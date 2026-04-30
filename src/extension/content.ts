@@ -15,6 +15,9 @@ const PAGE_CHATS_REQUEST_TYPE = 'CHAMALEAD_PAGE_GET_WPP_CHATS'
 const PAGE_CHATS_RESPONSE_TYPE = 'CHAMALEAD_PAGE_WPP_CHATS'
 const PAGE_SEND_MESSAGE_REQUEST_TYPE = 'CHAMALEAD_PAGE_SEND_MESSAGE'
 const PAGE_SEND_MESSAGE_RESPONSE_TYPE = 'CHAMALEAD_PAGE_SEND_MESSAGE_RESULT'
+const PAGE_SEND_AUDIO_REQUEST_TYPE = 'CHAMALEAD_PAGE_SEND_AUDIO'
+const PAGE_SEND_AUDIO_RESPONSE_TYPE = 'CHAMALEAD_PAGE_SEND_AUDIO_RESULT'
+const PAGE_AUDIO_TIMEOUT_MS = 30000
 
 let injectionAttempts = 0
 let pageBridgeReady = false
@@ -250,6 +253,56 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       requestId,
       phoneNumber,
       message: messageText,
+    }, '*')
+
+    return true
+  }
+
+  if (message?.type === 'CHAMALEAD_SEND_AUDIO') {
+    if (!pageBridgeReady) {
+      injectPageBridge()
+    }
+
+    const phoneNumber = message.phoneNumber
+    const audioBase64 = message.audioBase64
+
+    if (!phoneNumber || !audioBase64) {
+      sendResponse({ success: false, error: 'Missing phoneNumber or audioBase64' })
+      return true
+    }
+
+    const requestId = crypto.randomUUID()
+    const timeoutId = window.setTimeout(() => {
+      window.removeEventListener('message', onSendAudioResponse)
+      sendResponse({ success: false, error: 'Timeout' })
+    }, PAGE_AUDIO_TIMEOUT_MS)
+
+    function onSendAudioResponse(event: MessageEvent): void {
+      if (event.source !== window) {
+        return
+      }
+
+      const data = event.data as Record<string, unknown> | null
+      if (!data || data.type !== PAGE_SEND_AUDIO_RESPONSE_TYPE || data.requestId !== requestId) {
+        return
+      }
+
+      window.clearTimeout(timeoutId)
+      window.removeEventListener('message', onSendAudioResponse)
+
+      console.log('[ChamaLead:content] Send audio response', data)
+      sendResponse({
+        success: data.success === true,
+        error: data.error,
+      })
+    }
+
+    window.addEventListener('message', onSendAudioResponse)
+    window.postMessage({
+      type: PAGE_SEND_AUDIO_REQUEST_TYPE,
+      requestId,
+      phoneNumber,
+      audioBase64,
     }, '*')
 
     return true

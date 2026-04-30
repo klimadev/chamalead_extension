@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useMemo } from 'react'
+import { useState, useRef, useCallback, useMemo, useEffect } from 'react'
 import { useBulkSend, useWppStatus, type BulkSendProgress, formatPhoneNumber } from '@/features'
 import { Button } from '@/ui'
 
@@ -123,15 +123,23 @@ function renderProgress(prog: BulkSendProgress) {
 }
 
 export function BulkSendForm() {
+  const [activeSubTab, setActiveSubTab] = useState<'text' | 'audio'>('text')
+
+  useEffect(() => {
+    setCsvError('')
+  }, [activeSubTab])
   const [numbers, setNumbers] = useState('')
   const [message, setMessage] = useState('')
+  const [audioBase64, setAudioBase64] = useState('')
+  const [audioFileName, setAudioFileName] = useState('')
   const [csvData, setCsvData] = useState<CsvData | null>(null)
   const [selectedColumn, setSelectedColumn] = useState<string>('')
   const [csvError, setCsvError] = useState<string>('')
   const [previewNumbers, setPreviewNumbers] = useState<string[]>([])
   const fileReaderRef = useRef<FileReader | null>(null)
+  const audioFileReaderRef = useRef<FileReader | null>(null)
   const { status: wppStatus } = useWppStatus()
-  const { progress, logs, startBulkSend, resetBulkSend } = useBulkSend()
+  const { progress, logs, startBulkSend, startBulkSendAudio, resetBulkSend } = useBulkSend()
 
   const isSending = progress.status === 'sending'
   const isCompleted = progress.status === 'completed'
@@ -237,9 +245,12 @@ export function BulkSendForm() {
     void startBulkSend(numbers, message)
   }
 
-  const handleReset = () => {
+
+  const handleResetAll = () => {
     setNumbers('')
     setMessage('')
+    setAudioBase64('')
+    setAudioFileName('')
     setCsvData(null)
     setSelectedColumn('')
     setPreviewNumbers([])
@@ -252,8 +263,88 @@ export function BulkSendForm() {
     [previewNumbers]
   )
 
+  const handleAudioUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (file.size > MAX_FILE_SIZE) {
+      setCsvError('Arquivo de áudio muito grande. Tamanho máximo: 5MB')
+      return
+    }
+
+    if (audioFileReaderRef.current) {
+      audioFileReaderRef.current.abort()
+    }
+
+    const reader = new FileReader()
+    audioFileReaderRef.current = reader
+
+    reader.onload = (event) => {
+      audioFileReaderRef.current = null
+      const result = event.target?.result
+      if (!result || typeof result !== 'string') {
+        setCsvError('Erro ao ler arquivo de áudio')
+        return
+      }
+
+      const mimeType = file.type || 'audio/ogg'
+      const base64 = result.split(',')[1] || result
+      const fullBase64 = `data:${mimeType};base64,${base64}`
+
+      setAudioBase64(fullBase64)
+      setAudioFileName(file.name)
+      setCsvError('')
+    }
+
+    reader.onabort = () => {
+      if (audioFileReaderRef.current === reader) {
+        audioFileReaderRef.current = null
+      }
+    }
+
+    reader.onerror = () => {
+      if (audioFileReaderRef.current === reader) {
+        audioFileReaderRef.current = null
+      }
+      setCsvError('Erro ao ler arquivo de áudio')
+    }
+
+    reader.readAsDataURL(file)
+  }
+
+  const handleAudioReset = () => {
+    setAudioBase64('')
+    setAudioFileName('')
+    if (audioFileReaderRef.current) {
+      audioFileReaderRef.current.abort()
+      audioFileReaderRef.current = null
+    }
+  }
+
+  const handleSendAudio = () => {
+    if (!canSend) return
+    void startBulkSendAudio(numbers, audioBase64)
+  }
+
   return (
     <div className="bulk-send-form">
+      <div className="bulk-sub-tabs">
+        <button
+          className={`sub-tab-btn ${activeSubTab === 'text' ? 'active' : ''}`}
+          onClick={() => setActiveSubTab('text')}
+          disabled={isSending}
+        >
+          Texto Massivo
+        </button>
+        <button
+          className={`sub-tab-btn ${activeSubTab === 'audio' ? 'active' : ''}`}
+          onClick={() => setActiveSubTab('audio')}
+          disabled={isSending}
+        >
+          Áudio Massivo
+        </button>
+      </div>
+
       <div className="form-group">
         <label className="form-label">Importar CSV (opcional)</label>
         <input
@@ -324,25 +415,61 @@ export function BulkSendForm() {
         <span className="form-hint">Ex: 5511999999999, 5511888888888</span>
       </div>
 
-      <div className="form-group">
-        <label className="form-label">Mensagem</label>
-        <textarea
-          className="form-textarea"
-          placeholder="Digite sua mensagem..."
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          disabled={isSending}
-          rows={4}
-        />
-      </div>
+      {activeSubTab === 'text' && (
+        <div className="form-group">
+          <label className="form-label">Mensagem</label>
+          <textarea
+            className="form-textarea"
+            placeholder="Digite sua mensagem..."
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            disabled={isSending}
+            rows={4}
+          />
+        </div>
+      )}
+
+      {activeSubTab === 'audio' && (
+        <div className="form-group">
+          <label className="form-label">Áudio (PTT)</label>
+          <input
+            type="file"
+            accept="audio/*"
+            onChange={handleAudioUpload}
+            disabled={isSending}
+            className="form-file-input"
+          />
+          {audioFileName && (
+            <div className="audio-preview">
+              <span>Arquivo: {audioFileName}</span>
+              <button
+                type="button"
+                className="audio-reset-btn"
+                onClick={handleAudioReset}
+                disabled={isSending}
+              >
+                Remover
+              </button>
+            </div>
+          )}
+          {csvError && audioFileName && <span className="form-error">{csvError}</span>}
+        </div>
+      )}
 
       <div className="form-actions">
         {!isCompleted ? (
-          <Button onClick={handleSend} disabled={!canSend || !numbers || !message}>
+          <Button
+            onClick={activeSubTab === 'text' ? handleSend : handleSendAudio}
+            disabled={
+              !canSend ||
+              !numbers ||
+              (activeSubTab === 'text' ? !message : !audioBase64)
+            }
+          >
             {isSending ? 'Enviando...' : 'Iniciar Envio'}
           </Button>
         ) : (
-          <Button onClick={handleReset}>Novo Envio</Button>
+          <Button onClick={handleResetAll}>Novo Envio</Button>
         )}
       </div>
 

@@ -79,6 +79,26 @@ async function sendMessageToTab(phoneNumber: string, message: string): Promise<S
   }
 }
 
+async function sendAudioToTab(phoneNumber: string, audioBase64: string): Promise<SendResult> {
+  const tabs = await chrome.tabs.query({ currentWindow: true })
+  const waTab = tabs.find((tab) => tab.url?.includes('web.whatsapp.com'))
+
+  if (!waTab?.id) {
+    return { success: false, error: 'WhatsApp tab not found' }
+  }
+
+  try {
+    const response = await chrome.tabs.sendMessage(waTab.id, {
+      type: 'CHAMALEAD_SEND_AUDIO',
+      phoneNumber,
+      audioBase64,
+    })
+    return response
+  } catch (error) {
+    return { success: false, error: String(error) }
+  }
+}
+
 export function useBulkSend() {
   const [progress, setProgress] = useState<BulkSendProgress>({
     total: 0,
@@ -153,6 +173,64 @@ export function useBulkSend() {
     [addLog],
   )
 
+  const startBulkSendAudio = useCallback(
+    async (numbersText: string, audioBase64: string) => {
+      const numbers = numbersText
+        .split(',')
+        .map((n) => n.trim())
+        .filter((n) => n.length > 0)
+        .map(formatPhoneNumber)
+
+      if (numbers.length === 0) {
+        addLog('Nenhum número válido encontrado')
+        return
+      }
+
+      setProgress({
+        total: numbers.length,
+        sent: 0,
+        failed: 0,
+        currentPhone: null,
+        status: 'sending',
+      })
+
+      addLog(`Iniciando envio de áudio para ${numbers.length} números...`)
+
+      for (let i = 0; i < numbers.length; i++) {
+        const phone = numbers[i]
+        setProgress((prev) => ({ ...prev, currentPhone: phone }))
+
+        addLog(`Enviando áudio para ${phone} (${i + 1}/${numbers.length})...`)
+
+        const result = await sendAudioToTab(phone, audioBase64)
+
+        if (result.success) {
+          setProgress((prev) => ({ ...prev, sent: prev.sent + 1 }))
+          addLog(`✓ Áudio enviado para ${phone}`)
+        } else {
+          setProgress((prev) => ({ ...prev, failed: prev.failed + 1 }))
+          addLog(`✗ Falha ao enviar áudio para ${phone}: ${result.error}`)
+        }
+
+        if (i < numbers.length - 1) {
+          const delay = getRandomDelay()
+          addLog(`Aguardando ${(delay / 1000).toFixed(1)}s...`)
+          await new Promise((resolve) => setTimeout(resolve, delay))
+        }
+      }
+
+      setProgress((prev) => {
+        addLog(`Concluído! Enviados: ${prev.sent}, Falhas: ${prev.failed}`)
+        return {
+          ...prev,
+          currentPhone: null,
+          status: 'completed',
+        }
+      })
+    },
+    [addLog],
+  )
+
   const pauseBulkSend = useCallback(() => {
     setProgress((prev) => ({ ...prev, status: 'paused' }))
     addLog('Envio pausado')
@@ -174,6 +252,7 @@ export function useBulkSend() {
     progress,
     logs,
     startBulkSend,
+    startBulkSendAudio,
     pauseBulkSend,
     resetBulkSend,
   }
