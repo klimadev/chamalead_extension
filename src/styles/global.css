@@ -257,6 +257,96 @@ body {
   cursor: not-allowed;
 }
 
+.recording-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.record-btn {
+  padding: 10px 16px;
+  border: 2px solid #ef4444;
+  background: #fef2f2;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.record-btn:hover:not(:disabled) {
+  background: #fee2e2;
+}
+
+.record-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.recording-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+}
+
+.recording-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.recording-indicator {
+  color: #ef4444;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.recording-timer {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1e293b;
+  font-variant-numeric: tabular-nums;
+}
+
+.recording-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.stop-btn, .pause-btn, .resume-btn {
+  flex: 1;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.stop-btn {
+  background: #ef4444;
+  color: #ffffff;
+}
+
+.pause-btn {
+  background: #f59e0b;
+  color: #ffffff;
+}
+
+.resume-btn {
+  background: #22c55e;
+  color: #ffffff;
+}
+
+.stop-btn:disabled, .pause-btn:disabled, .resume-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .form-group {
   display: flex;
   flex-direction: column;
