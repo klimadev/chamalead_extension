@@ -387,7 +387,8 @@ export function BulkSendForm() {
         setRecordingTime((prev: number) => prev + 1)
       }, 1000)
     } catch (error) {
-      setCsvError(`Erro ao acessar microfone: ${error instanceof Error ? error.message : 'Permissão negada'}`)
+      const errMsg = error instanceof Error ? error.message : 'Erro desconhecido'
+      setCsvError(`Erro ao acessar microfone: ${errMsg}. Verifique se a permissão está ativada em chrome://settings/content/microphone`)
     }
   }
 
