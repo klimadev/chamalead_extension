@@ -132,11 +132,6 @@ export function BulkSendForm() {
   const [message, setMessage] = useState('')
   const [audioBase64, setAudioBase64] = useState('')
   const [audioFileName, setAudioFileName] = useState('')
-  const [isRecording, setIsRecording] = useState(false)
-  const [recordingTime, setRecordingTime] = useState(0)
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
-  const recordingChunksRef = useRef<Blob[]>([])
-  const recordingTimerRef = useRef<number | null>(null)
   const [csvData, setCsvData] = useState<CsvData | null>(null)
   const [selectedColumn, setSelectedColumn] = useState<string>('')
   const [csvError, setCsvError] = useState<string>('')
@@ -324,108 +319,7 @@ export function BulkSendForm() {
       audioFileReaderRef.current.abort()
       audioFileReaderRef.current = null
     }
-    if (mediaRecorderRef.current && isRecording) {
-      try { mediaRecorderRef.current.stop() } catch (e) { }
-      mediaRecorderRef.current = null
-    }
-    if (recordingTimerRef.current) {
-      window.clearInterval(recordingTimerRef.current)
-      recordingTimerRef.current = null
-    }
-    setIsRecording(false)
-    setRecordingTime(0)
-    recordingChunksRef.current = []
   }
-
-  const formatTime = (seconds: number): string => {
-    const mins = Math.floor(seconds / 60)
-    const secs = seconds % 60
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
-  }
-
-  const startRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const mimeTypes = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/ogg']
-      let selectedMimeType = ''
-
-      for (const mimeType of mimeTypes) {
-        if (MediaRecorder.isTypeSupported(mimeType)) {
-          selectedMimeType = mimeType
-          break
-        }
-      }
-
-      const recorder = new MediaRecorder(stream, selectedMimeType ? { mimeType: selectedMimeType } : undefined)
-      recordingChunksRef.current = []
-
-      recorder.ondataavailable = (event: BlobEvent) => {
-        if (event.data && event.data.size > 0) {
-          recordingChunksRef.current.push(event.data)
-        }
-      }
-
-      recorder.onstop = () => {
-        const blob = new Blob(recordingChunksRef.current, { type: selectedMimeType || 'audio/webm' })
-        const reader = new FileReader()
-        reader.onload = () => {
-          const result = reader.result as string
-          setAudioBase64(result)
-          setAudioFileName(`gravacao_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.webm`)
-          setCsvError('')
-        }
-        reader.readAsDataURL(blob)
-        stream.getTracks().forEach((track: MediaStreamTrack) => track.stop())
-      }
-
-      recorder.start(100)
-      mediaRecorderRef.current = recorder
-      setIsRecording(true)
-      setRecordingTime(0)
-
-      recordingTimerRef.current = window.setInterval(() => {
-        setRecordingTime((prev: number) => prev + 1)
-      }, 1000)
-    } catch (error) {
-      const errMsg = error instanceof Error ? error.message : 'Erro desconhecido'
-      setCsvError(`Erro ao acessar microfone: ${errMsg}. Verifique se a permissão está ativada em chrome://settings/content/microphone`)
-    }
-  }
-
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop()
-      mediaRecorderRef.current = null
-      setIsRecording(false)
-      if (recordingTimerRef.current) {
-        window.clearInterval(recordingTimerRef.current)
-        recordingTimerRef.current = null
-      }
-    }
-  }
-
-  const pauseRecording = () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-      mediaRecorderRef.current.pause()
-    }
-  }
-
-  const resumeRecording = () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'paused') {
-      mediaRecorderRef.current.resume()
-    }
-  }
-
-  useEffect(() => {
-    return () => {
-      if (recordingTimerRef.current) {
-        window.clearInterval(recordingTimerRef.current)
-      }
-      if (mediaRecorderRef.current) {
-        try { mediaRecorderRef.current.stop() } catch (e) { }
-      }
-    }
-  }, [])
 
   const handleSendAudio = () => {
     if (!canSend) return
@@ -539,51 +433,17 @@ export function BulkSendForm() {
         <div className="form-group">
           <label className="form-label">Áudio (PTT)</label>
 
-          {!isRecording && !audioBase64 && (
-            <div className="recording-options">
-              <button
-                type="button"
-                className="record-btn"
-                onClick={startRecording}
-                disabled={isSending}
-              >
-                🎙️ Gravar Áudio
-              </button>
-              <span className="form-hint" style={{ margin: '8px 0' }}>ou</span>
-              <input
-                type="file"
-                accept="audio/*"
-                onChange={handleAudioUpload}
-                disabled={isSending}
-                className="form-file-input"
-              />
-            </div>
+          {!audioBase64 && (
+            <input
+              type="file"
+              accept="audio/*"
+              onChange={handleAudioUpload}
+              disabled={isSending}
+              className="form-file-input"
+            />
           )}
 
-          {isRecording && (
-            <div className="recording-controls">
-              <div className="recording-status">
-                <span className="recording-indicator">🔴 Gravando...</span>
-                <span className="recording-timer">{formatTime(recordingTime)}</span>
-              </div>
-              <div className="recording-buttons">
-                <button type="button" className="stop-btn" onClick={stopRecording}>
-                  ⏹️ Parar
-                </button>
-                {mediaRecorderRef.current?.state === 'recording' ? (
-                  <button type="button" className="pause-btn" onClick={pauseRecording}>
-                    ⏸️ Pausar
-                  </button>
-                ) : (
-                  <button type="button" className="resume-btn" onClick={resumeRecording}>
-                    ▶️ Continuar
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
-
-          {audioFileName && !isRecording && (
+          {audioFileName && (
             <div className="audio-preview">
               <span>Arquivo: {audioFileName}</span>
               <audio controls src={audioBase64} style={{ marginLeft: '8px', height: '30px' }} />
