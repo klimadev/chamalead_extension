@@ -6,7 +6,7 @@ declare const EXT_VERSION: string
 
 const TABS: TabItem[] = [
   { id: 'chats', label: 'Conversas' },
-  { id: 'bulk', label: 'Envio Bulk' },
+  { id: 'bulk', label: 'Envio em Massa' },
   { id: 'about', label: 'Sobre' },
 ]
 
