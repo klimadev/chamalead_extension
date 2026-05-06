@@ -27,33 +27,48 @@ export function PopupPage() {
   const { status: wppStatus } = useWppStatus()
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
   const [checkingUpdate, setCheckingUpdate] = useState(false)
-  const [hasEverChecked, setHasEverChecked] = useState(false)
 
   const loadUpdateInfo = useCallback(() => {
     chrome.runtime.sendMessage({ type: 'CHAMALEAD_UPDATE_GET_INFO' }, (response) => {
       if (response) {
         setUpdateInfo(response)
-        if (response.checkedAt) {
-          setHasEverChecked(true)
-        }
       }
     })
   }, [])
 
   const checkForUpdates = useCallback(() => {
     setCheckingUpdate(true)
+    setUpdateInfo(null)
     chrome.runtime.sendMessage({ type: 'CHAMALEAD_UPDATE_CHECK_NOW' }, (response) => {
       if (response) {
         setUpdateInfo(response)
-        setHasEverChecked(true)
       }
       setCheckingUpdate(false)
     })
   }, [])
 
   useEffect(() => {
-    loadUpdateInfo()
-  }, [loadUpdateInfo])
+    if (activeTab === 'updates') {
+      loadUpdateInfo()
+    }
+  }, [activeTab, loadUpdateInfo])
+
+  // Listen for storage changes to keep update info in sync
+  useEffect(() => {
+    const listener = (changes: { [key: string]: chrome.storage.StorageChange }) => {
+      if (changes['chamalead_update_info']) {
+        const newInfo = changes['chamalead_update_info'].newValue as UpdateInfo
+        if (newInfo) {
+          setUpdateInfo(newInfo)
+        }
+      }
+    }
+
+    chrome.storage.onChanged.addListener(listener)
+    return () => {
+      chrome.storage.onChanged.removeListener(listener)
+    }
+  }, [])
 
   const handleDownload = useCallback(() => {
     chrome.runtime.sendMessage({ type: 'CHAMALEAD_UPDATE_DOWNLOAD' }, () => {})
@@ -210,7 +225,7 @@ export function PopupPage() {
                   <p className="update-no-updates">✓ Extensão está atualizada.</p>
                 )}
 
-                {!hasEverChecked && !checkingUpdate && (
+                {!updateInfo && !checkingUpdate && (
                   <p className="update-never-checked">Clique em "Verificar agora" para buscar atualizações.</p>
                 )}
               </div>

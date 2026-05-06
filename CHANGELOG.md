@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.39] - 2026-05-06
+### Fixed
+- Update check result now persists correctly in popup (fixed state management)
+- Removed reference to undefined `hasEverChecked` variable
+- Update check now uses background response directly instead of redundant storage call
+
 ## [0.1.33] - 2026-05-06
 ### Added
 - In-popup update notice when newer GitHub Release is available
