@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useMemo, useEffect } from 'react'
+import { useState, useRef, useMemo } from 'react'
 import { useBulkSend, useWppStatus, type BulkSendProgress, formatPhoneNumber } from '@/features'
 import { Button } from '@/ui'
 
@@ -125,9 +125,10 @@ function renderProgress(prog: BulkSendProgress) {
 export function BulkSendForm() {
   const [activeSubTab, setActiveSubTab] = useState<'text' | 'audio'>('text')
 
-  useEffect(() => {
+  const handleTabChange = (tab: 'text' | 'audio') => {
+    setActiveSubTab(tab)
     setCsvError('')
-  }, [activeSubTab])
+  }
   const [numbers, setNumbers] = useState('')
   const [message, setMessage] = useState('')
   const [audioBase64, setAudioBase64] = useState('')
@@ -139,13 +140,14 @@ export function BulkSendForm() {
   const fileReaderRef = useRef<FileReader | null>(null)
   const audioFileReaderRef = useRef<FileReader | null>(null)
   const { status: wppStatus } = useWppStatus()
-  const { progress, logs, startBulkSend, startBulkSendAudio, resetBulkSend } = useBulkSend()
+  const { progress, logs, loading, startBulkSend, startBulkSendAudio, pauseBulkSend, resumeBulkSend, resetBulkSend } = useBulkSend()
 
   const isSending = progress.status === 'sending'
+  const isPaused = progress.status === 'paused'
   const isCompleted = progress.status === 'completed'
-  const canSend = wppStatus.isReady && wppStatus.isAuthenticated && !isSending
+  const canSend = wppStatus.isReady && wppStatus.isAuthenticated && !isSending && !isPaused
 
-  const updatePreview = useCallback((col: string, data?: CsvData) => {
+  const updatePreview = (col: string, data?: CsvData) => {
     setSelectedColumn(col)
     const csvDataSource = data || csvData
     if (!csvDataSource || !col) {
@@ -164,7 +166,7 @@ export function BulkSendForm() {
       .filter((phone) => phone && phone.length > 0)
 
     setPreviewNumbers(formatted)
-  }, [csvData])
+  }
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -331,14 +333,14 @@ export function BulkSendForm() {
       <div className="bulk-sub-tabs">
         <button
           className={`sub-tab-btn ${activeSubTab === 'text' ? 'active' : ''}`}
-          onClick={() => setActiveSubTab('text')}
+          onClick={() => handleTabChange('text')}
           disabled={isSending}
         >
           Texto Massivo
         </button>
         <button
           className={`sub-tab-btn ${activeSubTab === 'audio' ? 'active' : ''}`}
-          onClick={() => setActiveSubTab('audio')}
+          onClick={() => handleTabChange('audio')}
           disabled={isSending}
         >
           Áudio Massivo
@@ -462,7 +464,11 @@ export function BulkSendForm() {
       )}
 
       <div className="form-actions">
-        {!isCompleted ? (
+        {isPaused ? (
+          <Button onClick={resumeBulkSend} disabled={loading}>
+            Retomar Envio
+          </Button>
+        ) : !isCompleted ? (
           <Button
             onClick={activeSubTab === 'text' ? handleSend : handleSendAudio}
             disabled={
@@ -475,6 +481,16 @@ export function BulkSendForm() {
           </Button>
         ) : (
           <Button onClick={handleResetAll}>Novo Envio</Button>
+        )}
+        {isSending && (
+          <Button onClick={pauseBulkSend}>
+            Pausar
+          </Button>
+        )}
+        {isPaused && (
+          <Button onClick={resetBulkSend}>
+            Cancelar
+          </Button>
         )}
       </div>
 
