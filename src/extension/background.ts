@@ -9,7 +9,7 @@ interface ReleaseUpdateInfo {
   downloadUrl: string | null
   changelog: string | null
   publishedAt: string | null
-  checkedAt: string
+  checkedAt: string | null
   error?: string
   [key: string]: unknown
 }
@@ -206,7 +206,7 @@ chrome.runtime.onMessage.addListener(
   (
     message: Record<string, unknown>,
     _sender: chrome.runtime.MessageSender,
-    sendResponse: (response: Record<string, unknown>) => void,
+    sendResponse: (response?: unknown) => void,
   ) => {
     if (message?.type === 'CHAMALEAD_GET_WPP_STATUS') {
       chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
@@ -346,16 +346,7 @@ chrome.runtime.onMessage.addListener(
 
     if (message?.type === 'CHAMALEAD_UPDATE_GET_INFO') {
       getUpdateInfo().then((info) => {
-        sendResponse(info ?? {
-          available: false,
-          currentVersion: chrome.runtime.getManifest().version,
-          latestVersion: '',
-          releaseUrl: '',
-          downloadUrl: null,
-          changelog: null,
-          publishedAt: null,
-          checkedAt: new Date().toISOString(),
-        })
+        sendResponse(info ?? null)
       })
       return true
     }

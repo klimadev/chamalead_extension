@@ -1,20 +1,9 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState } from 'react'
 import { BulkSendForm, useWppStatus } from '@/features'
 import { Card, Tabs, type TabItem } from '@/ui'
+import { UpdatesTab } from './UpdatesTab'
 
 declare const EXT_VERSION: string
-
-interface UpdateInfo {
-  available: boolean
-  currentVersion: string
-  latestVersion: string
-  releaseUrl: string
-  downloadUrl: string | null
-  changelog: string | null
-  publishedAt: string | null
-  checkedAt: string
-  error?: string
-}
 
 const TABS: TabItem[] = [
   { id: 'bulk', label: 'Envio em Massa' },
@@ -25,58 +14,6 @@ const TABS: TabItem[] = [
 export function PopupPage() {
   const [activeTab, setActiveTab] = useState('bulk')
   const { status: wppStatus } = useWppStatus()
-  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
-  const [checkingUpdate, setCheckingUpdate] = useState(false)
-
-  const loadUpdateInfo = useCallback(() => {
-    chrome.runtime.sendMessage({ type: 'CHAMALEAD_UPDATE_GET_INFO' }, (response) => {
-      if (response) {
-        setUpdateInfo(response)
-      }
-    })
-  }, [])
-
-  const checkForUpdates = useCallback(() => {
-    setCheckingUpdate(true)
-    setUpdateInfo(null)
-    chrome.runtime.sendMessage({ type: 'CHAMALEAD_UPDATE_CHECK_NOW' }, (response) => {
-      if (response) {
-        setUpdateInfo(response)
-      }
-      setCheckingUpdate(false)
-    })
-  }, [])
-
-  useEffect(() => {
-    if (activeTab === 'updates') {
-      loadUpdateInfo()
-    }
-  }, [activeTab, loadUpdateInfo])
-
-  // Listen for storage changes to keep update info in sync
-  useEffect(() => {
-    const listener = (changes: { [key: string]: chrome.storage.StorageChange }) => {
-      if (changes['chamalead_update_info']) {
-        const newInfo = changes['chamalead_update_info'].newValue as UpdateInfo
-        if (newInfo) {
-          setUpdateInfo(newInfo)
-        }
-      }
-    }
-
-    chrome.storage.onChanged.addListener(listener)
-    return () => {
-      chrome.storage.onChanged.removeListener(listener)
-    }
-  }, [])
-
-  const handleDownload = useCallback(() => {
-    chrome.runtime.sendMessage({ type: 'CHAMALEAD_UPDATE_DOWNLOAD' }, () => {})
-  }, [])
-
-  const handleViewRelease = useCallback(() => {
-    chrome.runtime.sendMessage({ type: 'CHAMALEAD_UPDATE_VIEW_RELEASE' }, () => {})
-  }, [])
 
   return (
     <main className="page" style={{ width: 380 }} role="main" aria-label="ChamaLead - Extensão WhatsApp">
@@ -161,75 +98,7 @@ export function PopupPage() {
 
         {activeTab === 'updates' && (
           <section aria-label="Atualizações">
-            <Card title="Atualizações">
-              <div className="updates-content">
-                <dl className="update-info">
-                  <div className="update-info-row">
-                    <dt className="update-label">Versão atual:</dt>
-                    <dd className="update-value">v{updateInfo?.currentVersion ?? EXT_VERSION}</dd>
-                  </div>
-                </dl>
-
-                <button
-                  className="update-btn check"
-                  onClick={checkForUpdates}
-                  disabled={checkingUpdate}
-                >
-                  {checkingUpdate ? 'Verificando...' : 'Verificar agora'}
-                </button>
-
-                {checkingUpdate && (
-                  <p className="update-checking" role="status">Verificando atualizações...</p>
-                )}
-
-                {!checkingUpdate && updateInfo?.error && (
-                  <p className="update-error" role="alert">{updateInfo.error}</p>
-                )}
-
-                {!checkingUpdate && updateInfo?.available && (
-                  <div className="update-notice" role="alert" aria-label="Atualização disponível">
-                    <h3 className="update-version">Nova versão: v{updateInfo.latestVersion}</h3>
-                    {updateInfo.changelog ? (
-                      <details className="update-changelog">
-                        <summary className="muted">Changelog</summary>
-                        <div className="changelog-text">{updateInfo.changelog}</div>
-                      </details>
-                    ) : (
-                      <p className="muted">Nenhuma informação disponível.</p>
-                    )}
-                    {updateInfo.downloadUrl && (
-                      <div className="update-download-section">
-                        <p className="update-label">Link direto do artefato:</p>
-                        <a
-                          href={updateInfo.downloadUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="update-direct-link"
-                        >
-                          {updateInfo.downloadUrl}
-                        </a>
-                        <button className="update-btn download" onClick={handleDownload}>
-                          Baixar ZIP
-                        </button>
-                      </div>
-                    )}
-                    <div className="update-actions" role="group" aria-label="Ações de atualização">
-                      <button className="update-btn view" onClick={handleViewRelease}>
-                        Ver release no GitHub
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {!checkingUpdate && !updateInfo?.available && !updateInfo?.error && updateInfo?.checkedAt && (
-                  <p className="update-no-updates">✓ Extensão está atualizada.</p>
-                )}
-
-                {!updateInfo && !checkingUpdate && (
-                  <p className="update-never-checked">Clique em "Verificar agora" para buscar atualizações.</p>
-                )}
-              </div>
-            </Card>
+            <UpdatesTab />
           </section>
         )}
 

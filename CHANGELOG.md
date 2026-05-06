@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.41] - 2026-05-06
+### Fixed
+- Popup no longer shifts horizontally when switching to the updates tab
+
+## [0.1.40] - 2026-05-06
+### Changed
+- Rebuilt the popup updates tab with a dedicated component and clearer state handling
+
+### Fixed
+- Initial updates screen no longer shows a false "up to date" state before any real check
+- Update status sync between popup and background is now simpler and more predictable
+
 ## [0.1.39] - 2026-05-06
 ### Fixed
 - Update check result now persists correctly in popup (fixed state management)

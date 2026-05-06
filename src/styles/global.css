@@ -2,6 +2,7 @@
   font-family: "Segoe UI", "Helvetica Neue", sans-serif;
   color: #1f2937;
   background: #f8fafc;
+  scrollbar-gutter: stable;
 }
 
 * {
@@ -11,6 +12,8 @@
 body {
   margin: 0;
   min-width: 320px;
+  overflow-y: scroll;
+  overflow-x: hidden;
 }
 
 .page {
@@ -513,27 +516,91 @@ body {
   border: 1px solid #fde68a;
 }
 
-.update-notice {
+.updates-panel {
   display: flex;
   flex-direction: column;
+  gap: 12px;
+}
+
+.updates-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.update-version-block {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.update-kicker {
+  font-size: 11px;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.update-version-value {
+  font-size: 18px;
+  color: #0f172a;
+}
+
+.update-state-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.update-state-card.neutral {
+  background: #f8fafc;
+}
+
+.update-state-card.ok {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.update-state-card.success {
+  background: #ecfdf5;
+  border-color: #86efac;
+}
+
+.update-state-card.error {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.update-state-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
   gap: 8px;
 }
 
-.update-version {
+.update-state-title {
+  margin: 0;
   font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.update-highlight {
+  margin: 4px 0 0;
+  font-size: 16px;
   font-weight: 700;
   color: #059669;
 }
 
-.update-current {
-  font-size: 12px;
+.update-meta {
+  margin: 0;
+  font-size: 11px;
   color: #64748b;
-}
-
-.update-changelog-preview {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
 }
 
 .changelog-text {
@@ -550,10 +617,10 @@ body {
 .update-actions {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .update-btn {
-  flex: 1;
   padding: 8px 12px;
   border: none;
   border-radius: 8px;
@@ -563,9 +630,24 @@ body {
   transition: all 0.2s ease;
 }
 
+.update-btn:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.update-btn.check {
+  background: #0f172a;
+  color: #ffffff;
+}
+
+.update-btn.check:hover:not(:disabled) {
+  background: #1e293b;
+}
+
 .update-btn.download {
   background: #059669;
   color: #ffffff;
+  flex: 1;
 }
 
 .update-btn.download:hover {
@@ -575,28 +657,17 @@ body {
 .update-btn.view {
   background: #e2e8f0;
   color: #1e293b;
+  flex: 1;
 }
 
 .update-btn.view:hover {
   background: #cbd5e1;
 }
 
-.update-checking {
+.update-status-message {
+  margin: 0;
   font-size: 13px;
-  color: #0ea5e9;
-  padding: 8px 0;
-  font-style: italic;
-}
-
-.update-download-section {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin: 12px 0;
-  padding: 12px;
-  background: #f8fafc;
-  border-radius: 8px;
-  border: 1px solid #e2e8f0;
+  color: #334155;
 }
 
 .update-direct-link {
@@ -615,9 +686,18 @@ body {
   background: #f1f5f9;
 }
 
-.update-never-checked {
-  font-size: 13px;
-  color: #64748b;
-  padding: 12px 0;
-  font-style: italic;
+.update-changelog summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+@media (max-width: 420px) {
+  .updates-summary,
+  .update-state-header,
+  .update-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }
