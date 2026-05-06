@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { BulkSendForm, useWppChats, useWppStatus } from '@/features'
+import { BulkSendForm, useWppStatus } from '@/features'
 import { Card, Tabs, type TabItem } from '@/ui'
 
 declare const EXT_VERSION: string
@@ -17,7 +17,6 @@ interface UpdateInfo {
 }
 
 const TABS: TabItem[] = [
-  { id: 'chats', label: 'Conversas' },
   { id: 'bulk', label: 'Envio em Massa' },
   { id: 'updates', label: 'Atualizações' },
   { id: 'about', label: 'Sobre' },
@@ -26,7 +25,6 @@ const TABS: TabItem[] = [
 export function PopupPage() {
   const [activeTab, setActiveTab] = useState('bulk')
   const { status: wppStatus } = useWppStatus()
-  const { chats, total, limitedTo } = useWppChats(wppStatus)
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
   const [checkingUpdate, setCheckingUpdate] = useState(false)
 
@@ -91,49 +89,6 @@ export function PopupPage() {
         <nav aria-label="Navegação principal">
           <Tabs tabs={TABS} activeTab={activeTab} onTabChange={setActiveTab} />
         </nav>
-
-        {activeTab === 'chats' && (
-          <section aria-label="Lista de conversas">
-            <Card title="Conversas">
-              <div className="contacts-panel">
-                {chats.length === 0 && total === 0 ? (
-                  <p className="muted" role="status">Carregando conversas...</p>
-                ) : chats.length === 0 ? (
-                  <p className="muted" role="status">Nenhuma conversa disponível.</p>
-                ) : (
-                  <>
-                    <p className="muted contacts-meta">
-                      {total > limitedTo ? `+ de ${limitedTo}` : total} conversas
-                    </p>
-                    <ul className="contacts-list" role="list">
-                      {chats.map((chat) => {
-                        const displayName = chat.name || chat.id
-
-                        return (
-                          <li key={chat.id} className="contact-item">
-                            <div className="contact-name-row">
-                              <strong className="contact-name">{displayName}</strong>
-                              {chat.isGroup && <span className="contact-tag" role="status">Grupo</span>}
-                              {chat.isNewsletter && <span className="contact-tag" role="status">Newsletter</span>}
-                              {chat.unreadCount > 0 && (
-                                <span className="contact-unread" aria-label={`${chat.unreadCount} mensagens não lidas`}>
-                                  {chat.unreadCount}
-                                </span>
-                              )}
-                            </div>
-                            {chat.lastMessage && (
-                              <span className="contact-last-message">{chat.lastMessage}</span>
-                            )}
-                          </li>
-                        )
-                      })}
-                    </ul>
-                  </>
-                )}
-              </div>
-            </Card>
-          </section>
-        )}
 
         {activeTab === 'bulk' && (
           <section aria-label="Envio em massa">
