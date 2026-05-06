@@ -40,6 +40,18 @@ npm run lint
 
 Version format: `0.1.x` (start from 0.1.0)
 
+### Semantic Versioning Guidelines
+
+Increment based on the type of change:
+
+| Change Type | Increment | Example |
+|------------|----------|---------|
+| Bug fixes, refactorings, text changes, non-breaking changes | **Patch** (0.1.x → 0.1.x+1) | 0.1.31 → 0.1.32 |
+| New features, new functionality | **Minor** (0.x.0 → 0.x+1.0) | 0.1.0 → 0.2.0 |
+| Breaking changes, API changes | **Major** (x.0.0 → x+1.0.0) | 0.1.0 → 1.0.0 |
+
+**IMPORTANT:** Run `npm run build` BEFORE committing to validate the version increment was correct.
+
 ## Build Validation Pipeline
 
 **ALWAYS run this pipeline after any change:**
@@ -189,4 +201,6 @@ public/vendor/         # External scripts (wppconnect-wa.js, chamalead-page-brid
 
 1. Run `npm run lint` - Fix any lint errors
 2. Run `npm run build` - Ensure build succeeds (REQUIRED)
-3. Increment version in `package.json` AND `vite.config.ts`
+3. Increment version in `package.json` AND `vite.config.ts` following the Semantic Versioning Guidelines (patch/minor/major)
+4. After version increment, run `npm run build` again to validate the new version is correct
+5. Commit and push with the incremented version
