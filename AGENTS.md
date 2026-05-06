@@ -52,6 +52,44 @@ Increment based on the type of change:
 
 **IMPORTANT:** Run `npm run build` BEFORE committing to validate the version increment was correct.
 
+## Release Changelog Guidelines
+
+When making user-visible changes, include meaningful changelog notes that will be used in GitHub Releases and displayed in the extension popup.
+
+### CHANGELOG.md Convention
+
+Maintain a `CHANGELOG.md` at the project root with entries for each version:
+
+```markdown
+# Changelog
+
+## [0.1.33] - 2026-05-06
+### Added
+- New feature X
+
+### Changed
+- Improved Y
+
+### Fixed
+- Bug fix Z
+
+## [0.1.32] - 2026-05-06
+...
+```
+
+### Commit and PR Guidelines
+
+- Write commit messages that describe user-visible changes clearly
+- Include a changelog section in PR descriptions when user-visible changes are made
+- Format: `Added/Changed/Fixed/Removed: <description>`
+
+### GitHub Release Notes
+
+The GitHub Actions workflow uses `generate_release_notes: true` which creates release notes automatically. To ensure quality:
+- Write clear, user-facing commit messages
+- Include a `CHANGELOG.md` entry for each release
+- The popup displays `release.body` as the changelog, so ensure release notes are meaningful
+
 ## Build Validation Pipeline
 
 **ALWAYS run this pipeline after any change:**

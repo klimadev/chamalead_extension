@@ -1,8 +1,20 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { BulkSendForm, useWppChats, useWppStatus } from '@/features'
 import { Card, Tabs, type TabItem } from '@/ui'
 
 declare const EXT_VERSION: string
+
+interface UpdateInfo {
+  available: boolean
+  currentVersion: string
+  latestVersion: string
+  releaseUrl: string
+  downloadUrl: string | null
+  changelog: string | null
+  publishedAt: string | null
+  checkedAt: string
+  error?: string
+}
 
 const TABS: TabItem[] = [
   { id: 'chats', label: 'Conversas' },
@@ -14,6 +26,64 @@ export function PopupPage() {
   const [activeTab, setActiveTab] = useState('bulk')
   const { status: wppStatus } = useWppStatus()
   const { chats, total, limitedTo } = useWppChats(wppStatus)
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
+
+  const loadUpdateInfo = useCallback(() => {
+    chrome.runtime.sendMessage({ type: 'CHAMALEAD_UPDATE_GET_INFO' }, (response) => {
+      if (response) {
+        setUpdateInfo(response)
+      }
+    })
+  }, [])
+
+  useEffect(() => {
+    loadUpdateInfo()
+  }, [loadUpdateInfo])
+
+  const handleDownload = useCallback(() => {
+    chrome.runtime.sendMessage({ type: 'CHAMALEAD_UPDATE_DOWNLOAD' }, () => {})
+  }, [])
+
+  const handleViewRelease = useCallback(() => {
+    chrome.runtime.sendMessage({ type: 'CHAMALEAD_UPDATE_VIEW_RELEASE' }, () => {})
+  }, [])
+
+  const renderUpdateNotice = () => {
+    if (!updateInfo?.available) return null
+
+    const changelogPreview = updateInfo.changelog
+      ? updateInfo.changelog.length > 200
+        ? `${updateInfo.changelog.substring(0, 200)}...`
+        : updateInfo.changelog
+      : 'Nenhuma informação disponível.'
+
+    return (
+      <Card title="Atualização Disponível">
+        <div className="update-notice">
+          <p className="update-version">Nova versão: v{updateInfo.latestVersion}</p>
+          <p className="update-current">Versão atual: v{updateInfo.currentVersion}</p>
+          <div className="update-changelog-preview">
+            <p className="muted">Changelog:</p>
+            <p className="changelog-text">{changelogPreview}</p>
+          </div>
+          <div className="update-actions">
+            {updateInfo.downloadUrl ? (
+              <button className="update-btn download" onClick={handleDownload}>
+                Baixar atualização
+              </button>
+            ) : (
+              <button className="update-btn view" onClick={handleViewRelease}>
+                Ver release
+              </button>
+            )}
+            <button className="update-btn view" onClick={handleViewRelease}>
+              Ver no GitHub
+            </button>
+          </div>
+        </div>
+      </Card>
+    )
+  }
 
   return (
     <main className="page" style={{ width: 380 }}>
@@ -38,6 +108,8 @@ export function PopupPage() {
             )}
           </div>
         </Card>
+
+        {renderUpdateNotice()}
 
         <Tabs tabs={TABS} activeTab={activeTab} onTabChange={setActiveTab} />
 

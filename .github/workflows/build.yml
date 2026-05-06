@@ -59,12 +59,25 @@ jobs:
           VERSION=$(node -p "require('./package.json').version")
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
+      - name: Check if tag already exists
+        id: check-tag
+        run: |
+          TAG_EXISTS=$(git tag -l "v${{ steps.version.outputs.version }}")
+          if [ -n "$TAG_EXISTS" ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "Tag v${{ steps.version.outputs.version }} already exists, skipping release creation"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Create ZIP for extension
+        if: steps.check-tag.outputs.exists == 'false'
         run: |
           cd dist
           zip -r ../chamalead-extension-${{ steps.version.outputs.version }}.zip .
 
       - name: Create Release
+        if: steps.check-tag.outputs.exists == 'false'
         uses: softprops/action-gh-release@v1
         with:
           tag_name: v${{ steps.version.outputs.version }}
@@ -74,3 +87,9 @@ jobs:
             chamalead-extension-${{ steps.version.outputs.version }}.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Tag exists notification
+        if: steps.check-tag.outputs.exists == 'true'
+        run: |
+          echo "::notice::Release v${{ steps.version.outputs.version }} already exists. Skipping release creation."
+          echo "::notice::To create a new release, increment the version in package.json and vite.config.ts"

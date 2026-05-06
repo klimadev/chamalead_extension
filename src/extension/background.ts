@@ -1,4 +1,18 @@
 const STORAGE_KEY = 'chamalead_bulk_send_state'
+const UPDATE_STORAGE_KEY = 'chamalead_update_info'
+
+interface ReleaseUpdateInfo {
+  available: boolean
+  currentVersion: string
+  latestVersion: string
+  releaseUrl: string
+  downloadUrl: string | null
+  changelog: string | null
+  publishedAt: string | null
+  checkedAt: string
+  error?: string
+  [key: string]: unknown
+}
 
 interface StoredBulkSendState {
   total: number
@@ -38,6 +52,16 @@ async function setStoredState(state: StoredBulkSendState): Promise<void> {
 
 async function clearStoredState(): Promise<void> {
   await chrome.storage.local.remove(STORAGE_KEY)
+}
+
+async function getUpdateInfo(): Promise<ReleaseUpdateInfo | null> {
+  const result = await chrome.storage.local.get(UPDATE_STORAGE_KEY)
+  const info = result[UPDATE_STORAGE_KEY]
+  return info ? (info as ReleaseUpdateInfo) : null
+}
+
+async function setUpdateInfo(info: ReleaseUpdateInfo): Promise<void> {
+  await chrome.storage.local.set({ [UPDATE_STORAGE_KEY]: info })
 }
 
 async function findWhatsAppTab(): Promise<chrome.tabs.Tab | null> {
@@ -320,6 +344,71 @@ chrome.runtime.onMessage.addListener(
       return true
     }
 
+    if (message?.type === 'CHAMALEAD_UPDATE_GET_INFO') {
+      getUpdateInfo().then((info) => {
+        sendResponse(info ?? {
+          available: false,
+          currentVersion: chrome.runtime.getManifest().version,
+          latestVersion: '',
+          releaseUrl: '',
+          downloadUrl: null,
+          changelog: null,
+          publishedAt: null,
+          checkedAt: new Date().toISOString(),
+        })
+      })
+      return true
+    }
+
+    if (message?.type === 'CHAMALEAD_UPDATE_CHECK_NOW') {
+      checkForUpdates().then(() => {
+        getUpdateInfo().then((info) => {
+          sendResponse(info ?? {
+            available: false,
+            currentVersion: chrome.runtime.getManifest().version,
+            latestVersion: '',
+            releaseUrl: '',
+            downloadUrl: null,
+            changelog: null,
+            publishedAt: null,
+            checkedAt: new Date().toISOString(),
+          })
+        })
+      })
+      return true
+    }
+
+    if (message?.type === 'CHAMALEAD_UPDATE_DOWNLOAD') {
+      getUpdateInfo().then((info) => {
+        if (!info || !info.downloadUrl) {
+          sendResponse({ success: false, error: 'No download URL available' })
+          return
+        }
+        // Try chrome.downloads if available, otherwise open in tab
+        if (chrome.downloads) {
+          chrome.downloads.download({ url: info.downloadUrl }, () => {
+            sendResponse({ success: true })
+          })
+        } else {
+          chrome.tabs.create({ url: info.downloadUrl })
+          sendResponse({ success: true })
+        }
+      })
+      return true
+    }
+
+    if (message?.type === 'CHAMALEAD_UPDATE_VIEW_RELEASE') {
+      getUpdateInfo().then((info) => {
+        if (info?.releaseUrl) {
+          chrome.tabs.create({ url: info.releaseUrl })
+          sendResponse({ success: true })
+        } else {
+          sendResponse({ success: false, error: 'No release URL available' })
+        }
+      })
+      return true
+    }
+
     return false
   },
 )
@@ -332,7 +421,7 @@ const UPDATE_CHECK_INTERVAL = 6 * 60 * 60 * 1000 // 6 hours
 function isNewerVersion(v1: string, v2: string): boolean {
   const [major1, minor1, patch1] = v1.split('.').map(Number)
   const [major2, minor2, patch2] = v2.split('.').map(Number)
-  
+
   if (major1 > major2) return true
   if (major1 < major2) return false
   if (minor1 > minor2) return true
@@ -340,40 +429,20 @@ function isNewerVersion(v1: string, v2: string): boolean {
   return patch1 > patch2
 }
 
-// Notification function
-function showUpdateNotification(version: string, _releaseUrl: string, releaseNotes: string | null): void {
-  const notificationId = `chamalead-update-${Date.now()}`
-  
-  // Truncate release notes if too long
-  const notesPreview = releaseNotes 
-    ? `${releaseNotes.substring(0, 100)}${releaseNotes.length > 100 ? '...' : ''}`
-    : 'Check the release page for details.'
-  
-  chrome.notifications.create(
-    notificationId,
-    {
-      type: 'basic',
-      iconUrl: 'icons/icon128.png',
-      title: 'ChamaLead Update Available',
-      message: `Version ${version} is available!\n${notesPreview}`,
-      priority: 2
-    }
-  )
+// Find the preferred ZIP asset from release
+function findZipAsset(release: { assets: Array<{ name: string; browser_download_url: string }> }): string | null {
+  const preferred = release.assets.find((a) => a.name.startsWith('chamalead-extension-') && a.name.endsWith('.zip'))
+  if (preferred) return preferred.browser_download_url
+  const fallback = release.assets.find((a) => a.name.endsWith('.zip'))
+  return fallback ? fallback.browser_download_url : null
 }
 
-// Handle notification click
-chrome.notifications.onClicked.addListener((notificationId) => {
-  if (notificationId.startsWith('chamalead-update-')) {
-    chrome.tabs.create({ url: `https://github.com/${GITHUB_REPO}/releases/latest` })
-  }
-})
-
-// Function to check for updates
+// Function to check for updates and store normalized metadata
 async function checkForUpdates(): Promise<void> {
   try {
     const manifest = chrome.runtime.getManifest()
     const currentVersion = manifest.version
-    
+
     const response = await fetch(
       `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`,
       {
@@ -382,26 +451,60 @@ async function checkForUpdates(): Promise<void> {
         }
       }
     )
-    
+
     if (!response.ok) throw new Error(`GitHub API error: ${response.status}`)
-    
+
     const latestRelease = await response.json()
     const latestVersion = latestRelease.tag_name.replace(/^v/, '') // Handle v1.2.3 format
-    
-    if (isNewerVersion(latestVersion, currentVersion)) {
-      showUpdateNotification(latestVersion, latestRelease.html_url, latestRelease.body)
+    const available = isNewerVersion(latestVersion, currentVersion)
+
+    const updateInfo: ReleaseUpdateInfo = {
+      available,
+      currentVersion,
+      latestVersion,
+      releaseUrl: latestRelease.html_url,
+      downloadUrl: available ? findZipAsset(latestRelease) : null,
+      changelog: latestRelease.body ?? null,
+      publishedAt: latestRelease.published_at ?? null,
+      checkedAt: new Date().toISOString(),
+    }
+
+    await setUpdateInfo(updateInfo)
+
+    if (available) {
       console.info(`[ChamaLead] Update available: ${latestVersion} (current: ${currentVersion})`)
     } else {
       console.info(`[ChamaLead] Extension is up to date: ${currentVersion}`)
     }
   } catch (error) {
+    const errorInfo: ReleaseUpdateInfo = {
+      available: false,
+      currentVersion: chrome.runtime.getManifest().version,
+      latestVersion: '',
+      releaseUrl: '',
+      downloadUrl: null,
+      changelog: null,
+      publishedAt: null,
+      checkedAt: new Date().toISOString(),
+      error: String(error),
+    }
+    await setUpdateInfo(errorInfo)
     console.error('[ChamaLead] Update check failed:', error)
   }
 };
 
-// Check for updates on startup and set interval
+// Check for updates on startup and set alarm
 checkForUpdates();
-setInterval(checkForUpdates, UPDATE_CHECK_INTERVAL);
+
+// Schedule recurring update checks with chrome.alarms (MV3 compatible)
+if (chrome.alarms) {
+  chrome.alarms.create('CHAMALEAD_UPDATE_CHECK', { periodInMinutes: UPDATE_CHECK_INTERVAL / 60000 })
+  chrome.alarms.onAlarm.addListener((alarm) => {
+    if (alarm.name === 'CHAMALEAD_UPDATE_CHECK') {
+      void checkForUpdates()
+    }
+  })
+}
 
 // Resume interrupted bulk send if any
 (void (async () => {
