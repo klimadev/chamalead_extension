@@ -1,5 +1,8 @@
 import { useState, useRef, useMemo } from 'react'
-import { useBulkSend, useWppStatus, type BulkSendProgress, formatPhoneNumber } from '@/features'
+import { useBulkSend, formatPhoneNumber } from './useBulkSend'
+import { useWppStatus } from './useWppStatus'
+import type { BulkSendProgress } from './useBulkSend'
+import { extractPlaceholders, validatePlaceholders, type CsvRecipient } from './csv-messages'
 import { Button } from '@/ui'
 
 interface CsvData {
@@ -131,12 +134,14 @@ export function BulkSendForm() {
   }
   const [numbers, setNumbers] = useState('')
   const [message, setMessage] = useState('')
+  const [fallbackMessage, setFallbackMessage] = useState('')
   const [audioBase64, setAudioBase64] = useState('')
   const [audioFileName, setAudioFileName] = useState('')
   const [csvData, setCsvData] = useState<CsvData | null>(null)
   const [selectedColumn, setSelectedColumn] = useState<string>('')
   const [csvError, setCsvError] = useState<string>('')
   const [previewNumbers, setPreviewNumbers] = useState<string[]>([])
+  const [recipients, setRecipients] = useState<CsvRecipient[]>([])
   const fileReaderRef = useRef<FileReader | null>(null)
   const audioFileReaderRef = useRef<FileReader | null>(null)
   const { status: wppStatus } = useWppStatus()
@@ -233,10 +238,27 @@ export function BulkSendForm() {
       return
     }
 
-    const phones = validPhones.join(', ')
+    const phoneColIndex = csvData.headers.indexOf(selectedColumn)
+    const builtRecipients: CsvRecipient[] = []
 
-    setNumbers((prev) => prev ? `${prev}, ${phones}` : phones)
-    setCsvData(null)
+    for (const row of csvData.rows) {
+      const phone = formatPhoneNumber(row[phoneColIndex] || '')
+      if (!phone || !isValidPhone(phone)) continue
+
+      const variables: Record<string, string> = {}
+      for (let i = 0; i < csvData.headers.length; i++) {
+        const header = csvData.headers[i]
+        if (header !== selectedColumn) {
+          variables[header] = row[i] || ''
+        }
+      }
+
+      builtRecipients.push({ phone, variables })
+    }
+
+    const phones = builtRecipients.map(r => r.phone)
+    setNumbers((prev) => prev ? `${prev}, ${phones.join(', ')}` : phones.join(', '))
+    setRecipients(builtRecipients)
     setSelectedColumn('')
     setPreviewNumbers([])
     setCsvError('')
@@ -244,18 +266,47 @@ export function BulkSendForm() {
 
   const handleSend = () => {
     if (!canSend) return
-    void startBulkSend(numbers, message)
+
+    const hasRecipients = recipients.length > 0
+    const hasVariables = hasRecipients && message.includes('{{')
+
+    if (hasVariables) {
+      const placeholderNames = extractPlaceholders(message).map((t: { name: string }) => t.name)
+      const availableHeaders = Object.keys(recipients[0]?.variables ?? {})
+      const validation = validatePlaceholders(
+        placeholderNames.map((name: string) => ({ name, start: 0, end: 0 })),
+        availableHeaders,
+      )
+
+      if (!validation.valid) {
+        setCsvError(`Coluna(s) não disponível(is): ${validation.unknown.join(', ')}`)
+        return
+      }
+
+      if (!fallbackMessage.trim()) {
+        setCsvError('Forneça uma mensagem fallback para quando variáveis estiverem ausentes')
+        return
+      }
+    }
+
+    const options = hasRecipients
+      ? { numbersText: numbers, messageText: message, recipients, fallbackMessage }
+      : { numbersText: numbers, messageText: message }
+
+    void startBulkSend(options)
   }
 
 
   const handleResetAll = () => {
     setNumbers('')
     setMessage('')
+    setFallbackMessage('')
     setAudioBase64('')
     setAudioFileName('')
     setCsvData(null)
     setSelectedColumn('')
     setPreviewNumbers([])
+    setRecipients([])
     setCsvError('')
     resetBulkSend()
   }
@@ -472,6 +523,36 @@ export function BulkSendForm() {
               rows={4}
             />
             <span className="form-hint">A mensagem será enviada para cada contato da campanha.</span>
+            {recipients.length > 0 && Object.keys(recipients[0]?.variables ?? {}).length > 0 && (
+              <div className="variable-chips">
+                <span className="form-hint">Colunas disponíveis:</span>
+                {Object.keys(recipients[0].variables).map((header) => (
+                  <button
+                    key={header}
+                    type="button"
+                    className="variable-chip"
+                    onClick={() => setMessage(prev => prev + `{{${header}}}`)}
+                  >
+                    {`{{${header}}}`}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeSubTab === 'text' && recipients.length > 0 && (
+          <div className="form-group">
+            <label className="form-label">Mensagem fallback</label>
+            <textarea
+              className="form-textarea"
+              placeholder="Mensagem alternativa quando variável estiver vazia..."
+              value={fallbackMessage}
+              onChange={(e) => setFallbackMessage(e.target.value)}
+              disabled={isSending}
+              rows={3}
+            />
+            <span className="form-hint">Esta mensagem será enviada quando alguma variável estiver vazia.</span>
           </div>
         )}
 

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import type { CsvRecipient } from './csv-messages'
 
 export function formatPhoneNumber(phone: string): string {
   const cleaned = phone.replace(/\D/g, '')
@@ -20,6 +21,13 @@ export interface BulkSendProgress {
   failed: number
   currentPhone: string | null
   status: 'idle' | 'sending' | 'paused' | 'completed' | 'error'
+}
+
+export interface BulkSendOptions {
+  numbersText: string
+  messageText: string
+  recipients?: CsvRecipient[]
+  fallbackMessage?: string
 }
 
 interface BackgroundState {
@@ -113,14 +121,17 @@ export function useBulkSend() {
   }, [fetchState, startPolling, stopPolling])
 
   const startBulkSend = useCallback(
-    async (numbersText: string, messageText: string) => {
+    async (options: BulkSendOptions | string, messageText?: string) => {
       setLoading(true)
+
+      const payload = typeof options === 'string'
+        ? { numbersText: options, messageText: messageText ?? '', isAudio: false }
+        : { numbersText: options.numbersText, messageText: options.messageText, isAudio: false, recipients: options.recipients, fallbackMessage: options.fallbackMessage }
+
       chrome.runtime.sendMessage(
         {
           type: 'CHAMALEAD_BULK_SEND_START',
-          numbersText,
-          messageText,
-          isAudio: false,
+          ...payload,
         },
         (response) => {
           setLoading(false)

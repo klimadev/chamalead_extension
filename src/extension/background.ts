@@ -1,6 +1,50 @@
 const STORAGE_KEY = 'chamalead_bulk_send_state'
 const UPDATE_STORAGE_KEY = 'chamalead_update_info'
 
+function extractPlaceholders(text: string): string[] {
+  const names: string[] = []
+  const regex = /\{\{([^}]+)\}\}/g
+  let match: RegExpExecArray | null
+  while ((match = regex.exec(text)) !== null) {
+    const name = match[1].trim()
+    if (name && !names.includes(name)) {
+      names.push(name)
+    }
+  }
+  regex.lastIndex = 0
+  return names
+}
+
+function renderMessage(
+  template: string,
+  variables: Record<string, string>,
+  usedNames: string[],
+): string {
+  let result = template
+  for (const name of usedNames) {
+    const value = variables[name] ?? ''
+    const pattern = '\\{\\{' + name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\}\\}'
+    const regex = new RegExp(pattern, 'g')
+    result = result.replace(regex, value)
+  }
+  result = result.replace(/\{\{[^}]+\}\}/g, '')
+  return result
+}
+
+function shouldUseFallback(
+  _template: string,
+  variables: Record<string, string>,
+  usedNames: string[],
+): boolean {
+  for (const name of usedNames) {
+    const value = variables[name] ?? ''
+    if (!value || value.trim().length === 0) {
+      return true
+    }
+  }
+  return false
+}
+
 interface ReleaseUpdateInfo {
   available: boolean
   currentVersion: string
@@ -12,6 +56,11 @@ interface ReleaseUpdateInfo {
   checkedAt: string | null
   error?: string
   [key: string]: unknown
+}
+
+interface CsvRecipient {
+  phone: string
+  variables: Record<string, string>
 }
 
 interface StoredBulkSendState {
@@ -26,6 +75,8 @@ interface StoredBulkSendState {
   audioBase64?: string
   logs: string[]
   currentIndex: number
+  recipients?: CsvRecipient[]
+  fallbackMessage?: string
 }
 
 function getRandomDelay(): number {
@@ -121,7 +172,37 @@ async function processNextNumber(state: StoredBulkSendState): Promise<void> {
     return
   }
 
-  const phone = state.numbers[state.currentIndex]
+  const phone = state.recipients?.[state.currentIndex]?.phone ?? state.numbers[state.currentIndex]
+  const variables = state.recipients?.[state.currentIndex]?.variables ?? {}
+
+  let messageToSend: string
+  if (state.recipients && state.message) {
+    const usedNames = extractPlaceholders(state.message)
+    if (usedNames.length > 0 && shouldUseFallback(state.message, variables, usedNames)) {
+      messageToSend = state.fallbackMessage ?? ''
+    } else {
+      messageToSend = renderMessage(state.message, variables, usedNames)
+    }
+  } else {
+    messageToSend = state.message
+  }
+
+  if (!messageToSend || messageToSend.trim().length === 0) {
+    const afterSkip = await getStoredState()
+    if (!afterSkip || afterSkip.status !== 'sending') return
+    afterSkip.currentIndex++
+    await setStoredState(addLog(afterSkip, `⚠ Pulando ${phone}: mensagem vazia (usando fallback)`))
+    if (afterSkip.currentIndex >= afterSkip.numbers.length) {
+      afterSkip.status = 'completed'
+      afterSkip.currentPhone = null
+      await setStoredState(afterSkip)
+      return
+    }
+    const delay = getRandomDelay()
+    setTimeout(() => void continueSending(), delay)
+    return
+  }
+
   const updated = { ...state, currentPhone: phone }
   await setStoredState(addLog(updated, `Enviando para ${phone} (${state.currentIndex + 1}/${state.total})...`))
 
@@ -130,7 +211,7 @@ async function processNextNumber(state: StoredBulkSendState): Promise<void> {
   if (state.messageType === 'audio' && state.audioBase64) {
     result = await sendAudioToTab(tab.id, phone, state.audioBase64)
   } else {
-    const messageParts = splitMessageByDoubleNewline(state.message)
+    const messageParts = splitMessageByDoubleNewline(messageToSend)
     result = { success: true }
 
     for (const part of messageParts) {
@@ -246,6 +327,8 @@ chrome.runtime.onMessage.addListener(
       const messageText = message.messageText as string
       const audioBase64 = message.audioBase64 as string | undefined
       const isAudio = message.isAudio as boolean
+      const recipients = message.recipients as CsvRecipient[] | undefined
+      const fallbackMessage = message.fallbackMessage as string | undefined
 
       const numbers = numbersText
         .split(',')
@@ -270,6 +353,8 @@ chrome.runtime.onMessage.addListener(
         audioBase64: isAudio ? audioBase64 : undefined,
         logs: [],
         currentIndex: 0,
+        recipients,
+        fallbackMessage,
       }
 
       const withLog = addLog(state, `Iniciando envio para ${numbers.length} números...`)
