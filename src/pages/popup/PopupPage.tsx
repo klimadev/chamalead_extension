@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { BulkSendForm, useWppChats, useWppStatus } from '@/features'
 import { Card, Tabs, type TabItem } from '@/ui'
 
+declare const EXT_VERSION: string
+
 const TABS: TabItem[] = [
   { id: 'chats', label: 'Conversas' },
   { id: 'bulk', label: 'Envio Bulk' },
@@ -15,7 +17,7 @@ export function PopupPage() {
   return (
     <main className="page" style={{ width: 380 }}>
       <div className="stack">
-        <Card title="ChamaLead">
+        <Card title={`ChamaLead v${EXT_VERSION}`}>
           <div className="wpp-status">
             <div className="status-row">
               <span className="status-label">Status WPP:</span>
