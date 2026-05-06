@@ -18,28 +18,31 @@ export function SettingsForm({ initialSettings, onSave }: SettingsFormProps) {
   }
 
   return (
-    <div className="stack">
-      <div className="row">
-        <span>Extensao ativa</span>
-        <Switch
-          checked={draft.enabled}
-          onChange={(enabled) => setDraft((current) => ({ ...current, enabled }))}
-        />
+    <div className="settings-form stack">
+      <div className="settings-section">
+        <div className="settings-section-header">
+          <div>
+            <p className="section-kicker">Estado do produto</p>
+            <h3 className="section-title">Extensão ativa</h3>
+          </div>
+          <Switch
+            checked={draft.enabled}
+            onChange={(enabled) => setDraft((current) => ({ ...current, enabled }))}
+          />
+        </div>
+        <p className="section-helper">Quando desativada, a extensão mantém as preferências mas para a operação.</p>
       </div>
 
-      <label className="stack">
-        <span>Workspace</span>
+      <label className="field-stack">
+        <span className="field-label">Workspace</span>
         <input
+          className="field-input"
           value={draft.workspaceName}
           onChange={(event) =>
             setDraft((current) => ({ ...current, workspaceName: event.target.value }))
           }
-          style={{
-            border: '1px solid #cbd5e1',
-            borderRadius: 8,
-            padding: '8px 10px',
-          }}
         />
+        <span className="field-hint">Nome usado para identificar a operação dentro da extensão.</span>
       </label>
 
       <Button onClick={() => void handleSave()} disabled={isSaving}>

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.42] - 2026-05-06
+### Changed
+- Refined popup, bulk send, and settings surfaces into a more cohesive operational layout.
+
+### Fixed
+- WhatsApp readiness now presents clearer loading, ready, and blocked states in the popup header.
+
 ## [0.1.41] - 2026-05-06
 ### Fixed
 - Popup no longer shifts horizontally when switching to the updates tab

@@ -18,8 +18,10 @@ export function Tabs({ tabs, activeTab, onTabChange }: TabsProps) {
         {tabs.map((tab) => (
           <button
             key={tab.id}
+            type="button"
             className={`tab-button ${activeTab === tab.id ? 'active' : ''}`}
             onClick={() => onTabChange(tab.id)}
+            aria-pressed={activeTab === tab.id}
           >
             {tab.label}
           </button>

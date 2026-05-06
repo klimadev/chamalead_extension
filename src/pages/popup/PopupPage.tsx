@@ -15,30 +15,48 @@ export function PopupPage() {
   const [activeTab, setActiveTab] = useState('bulk')
   const { status: wppStatus } = useWppStatus()
 
+  const readinessLabel = wppStatus.isLoading
+    ? 'Verificando WhatsApp'
+    : wppStatus.isReady && wppStatus.isAuthenticated
+      ? 'Pronto para enviar'
+      : wppStatus.isReady
+        ? 'Sessão aguardando autenticação'
+        : 'WhatsApp indisponível'
+
+  const readinessDescription = wppStatus.isLoading
+    ? 'A extensão está checando a presença e o estado da sessão.'
+    : wppStatus.isReady && wppStatus.isAuthenticated
+      ? 'Envio em massa liberado com sessão autenticada.'
+      : wppStatus.isReady
+        ? 'O WhatsApp abriu, mas a sessão ainda não está autenticada.'
+        : 'Conecte o WhatsApp Web antes de iniciar campanhas.'
+
   return (
     <main className="page" style={{ width: 380 }} role="main" aria-label="ChamaLead - Extensão WhatsApp">
       <div className="stack">
         <header>
-          <Card title={`ChamaLead v${EXT_VERSION}`}>
-            <section className="wpp-status" aria-label="Status do WhatsApp">
-              <dl className="status-list">
-                <div className="status-row">
-                  <dt className="status-label">Status WPP:</dt>
-                  <dd className={`status-badge ${wppStatus.isReady ? 'ready' : 'not-ready'}`}>
-                    {wppStatus.isReady ? 'Pronto' : 'Aguardando...'}
-                  </dd>
+          <Card title={`ChamaLead v${EXT_VERSION}`} className="status-card">
+            <section className="status-panel" aria-label="Status do WhatsApp">
+              <div className="status-panel-header">
+                <div>
+                  <p className="section-kicker">WhatsApp operacional</p>
+                  <h3 className="status-panel-title">{readinessLabel}</h3>
+                  <p className="status-panel-description">{readinessDescription}</p>
                 </div>
-                {wppStatus.isReady && (
-                  <div className="status-row">
-                    <dt className="status-label">Autenticado:</dt>
-                    <dd
-                      className={`status-badge ${wppStatus.isAuthenticated ? 'authenticated' : 'not-authenticated'}`}
-                    >
-                      {wppStatus.isAuthenticated ? 'Sim' : 'Não'}
-                    </dd>
-                  </div>
-                )}
-              </dl>
+                <div className={`status-chip status-chip--${wppStatus.isLoading ? 'neutral' : wppStatus.isReady && wppStatus.isAuthenticated ? 'success' : wppStatus.isReady ? 'warning' : 'danger'}`}>
+                  {wppStatus.isLoading ? 'Checando' : wppStatus.isReady && wppStatus.isAuthenticated ? 'Pronto' : wppStatus.isReady ? 'Parcial' : 'Bloqueado'}
+                </div>
+              </div>
+
+              <div className="status-metrics" aria-label="Indicadores do WhatsApp">
+                <span className={`status-chip ${wppStatus.isReady ? 'status-chip--success' : 'status-chip--warning'}`}>
+                  {wppStatus.isReady ? 'WPP conectado' : 'WPP ausente'}
+                </span>
+                <span className={`status-chip ${wppStatus.isAuthenticated ? 'status-chip--success' : 'status-chip--danger'}`}>
+                  {wppStatus.isAuthenticated ? 'Sessão autenticada' : 'Sessão não autenticada'}
+                </span>
+                {wppStatus.isLoading && <span className="status-chip status-chip--neutral">Atualizando estado</span>}
+              </div>
             </section>
           </Card>
         </header>
@@ -63,34 +81,40 @@ export function PopupPage() {
 
         {activeTab === 'about' && (
           <section aria-label="Sobre o ChamaLead">
-            <Card title="Sobre">
+            <Card title="Sobre" className="about-card">
               <div className="about-content">
-                <div className="about-logo">CL</div>
-                <h2>ChamaLead</h2>
-                <p className="about-version">Versão {EXT_VERSION}</p>
+                <div className="about-identity">
+                  <div className="about-logo">CL</div>
+                  <div>
+                    <p className="section-kicker">Identidade do produto</p>
+                    <h3 className="about-name">ChamaLead</h3>
+                    <p className="about-version">Versão {EXT_VERSION}</p>
+                  </div>
+                </div>
                 <p className="about-description">
-                  Extensão WhatsApp para automação de mensagens e envio em massa.
+                  Extensão para automação de WhatsApp focada em preparo de campanhas, envio em massa e atualização segura.
                 </p>
-                <div className="about-features">
-                  <h3>Recursos</h3>
-                  <ul>
-                    <li>Envio em massa via CSV</li>
-                    <li>Áudio massivo (PTT)</li>
-                    <li>Humanizado com intervalos</li>
-                    <li>Modo pausa/retomada</li>
-                  </ul>
+                <div className="about-grid">
+                  <div className="about-block">
+                    <h4>Capacidades</h4>
+                    <ul>
+                      <li>Envio em massa via CSV</li>
+                      <li>Áudio massivo (PTT)</li>
+                      <li>Intervalos humanizados</li>
+                      <li>Pausa, retomada e cancelamento</li>
+                    </ul>
+                  </div>
+                  <div className="about-block">
+                    <h4>Contexto</h4>
+                    <ul>
+                      <li>Popup operacional para campanhas</li>
+                      <li>Atualizações via GitHub Release</li>
+                      <li>Persistência local de preferências</li>
+                      <li>Compatível com Chrome Extension MV3</li>
+                    </ul>
+                  </div>
                 </div>
-                <div className="about-tech">
-                  <h3>Tecnologias</h3>
-                  <ul>
-                    <li>React 19 + TypeScript</li>
-                    <li>WPPConnect WA-JS</li>
-                    <li>Chrome Extension MV3</li>
-                  </ul>
-                </div>
-                <footer className="about-footer">
-                  Desenvolvido com ❤ para automação WhatsApp
-                </footer>
+                <footer className="about-footer">Desenvolvido para operação prática, clara e segura.</footer>
               </div>
             </Card>
           </section>

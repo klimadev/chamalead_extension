@@ -2,19 +2,13 @@ import { type PropsWithChildren } from 'react'
 
 type CardProps = PropsWithChildren<{
   title?: string
+  className?: string
 }>
 
-export function Card({ title, children }: CardProps) {
+export function Card({ title, className, children }: CardProps) {
   return (
-    <section
-      style={{
-        background: '#ffffff',
-        borderRadius: 12,
-        border: '1px solid #e2e8f0',
-        padding: 12,
-      }}
-    >
-      {title ? <h2 style={{ margin: '0 0 8px 0', fontSize: 16 }}>{title}</h2> : null}
+    <section className={`card ${className ?? ''}`.trim()}>
+      {title ? <h2 className="card-title">{title}</h2> : null}
       {children}
     </section>
   )

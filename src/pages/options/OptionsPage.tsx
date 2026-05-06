@@ -7,19 +7,21 @@ export function OptionsPage() {
   if (isLoading) {
     return (
       <main className="page">
-        <p className="muted">Carregando configuracoes...</p>
+        <Card title="Configurações" className="surface-card">
+          <p className="muted">Carregando configurações...</p>
+        </Card>
       </main>
     )
   }
 
   return (
     <main className="page">
-      <div className="stack" style={{ maxWidth: 680, margin: '0 auto' }}>
-        <Card title="Painel da Extensao">
-          <p className="muted">Mesmo estado, mesmo formulario, outra superficie.</p>
+      <div className="stack options-layout">
+        <Card title="Painel da Extensão" className="surface-card">
+          <p className="muted">As preferências usam a mesma linguagem visual do popup.</p>
         </Card>
 
-        <Card title="Preferencias">
+        <Card title="Preferências" className="surface-card">
           <SettingsForm initialSettings={settings} onSave={updateSettings} />
         </Card>
       </div>

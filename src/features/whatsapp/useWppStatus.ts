@@ -3,12 +3,14 @@ import { useEffect, useState } from 'react'
 export interface WppStatus {
   isReady: boolean
   isAuthenticated: boolean
+  isLoading: boolean
 }
 
 export function useWppStatus() {
   const [status, setStatus] = useState<WppStatus>({
     isReady: false,
     isAuthenticated: false,
+    isLoading: true,
   })
 
   useEffect(() => {
@@ -27,7 +29,7 @@ export function useWppStatus() {
 
         if (!waTab?.id) {
           console.log('[ChamaLead:hook] No WhatsApp tab found')
-          setStatus({ isReady: false, isAuthenticated: false })
+          setStatus({ isReady: false, isAuthenticated: false, isLoading: false })
           return
         }
 
@@ -40,10 +42,11 @@ export function useWppStatus() {
         setStatus({
           isReady: response?.isReady ?? false,
           isAuthenticated: response?.isAuthenticated ?? false,
+          isLoading: false,
         })
       } catch (error) {
         console.error('[ChamaLead:hook] Error:', error)
-        setStatus({ isReady: false, isAuthenticated: false })
+        setStatus({ isReady: false, isAuthenticated: false, isLoading: false })
       }
     }
 
