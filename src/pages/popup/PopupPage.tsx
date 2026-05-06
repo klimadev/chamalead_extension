@@ -170,7 +170,11 @@ export function PopupPage() {
                   <p className="update-error" role="alert">{updateInfo.error}</p>
                 )}
 
-                {updateInfo?.available && (
+                {checkingUpdate && (
+                  <p className="update-checking" role="status">Verificando atualizações...</p>
+                )}
+
+                {updateInfo?.available && !checkingUpdate && (
                   <div className="update-notice" role="alert" aria-label="Atualização disponível">
                     <h3 className="update-version">Nova versão: v{updateInfo.latestVersion}</h3>
                     {updateInfo.changelog ? (
@@ -181,18 +185,25 @@ export function PopupPage() {
                     ) : (
                       <p className="muted">Nenhuma informação disponível.</p>
                     )}
-                    <div className="update-actions" role="group" aria-label="Ações de atualização">
-                      {updateInfo.downloadUrl ? (
+                    {updateInfo.downloadUrl && (
+                      <div className="update-download-section">
+                        <p className="update-label">Link direto do artefato:</p>
+                        <a
+                          href={updateInfo.downloadUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="update-direct-link"
+                        >
+                          {updateInfo.downloadUrl}
+                        </a>
                         <button className="update-btn download" onClick={handleDownload}>
-                          Baixar atualização
+                          Baixar ZIP
                         </button>
-                      ) : (
-                        <button className="update-btn view" onClick={handleViewRelease}>
-                          Ver release
-                        </button>
-                      )}
+                      </div>
+                    )}
+                    <div className="update-actions" role="group" aria-label="Ações de atualização">
                       <button className="update-btn view" onClick={handleViewRelease}>
-                        Ver no GitHub
+                        Ver release no GitHub
                       </button>
                     </div>
                   </div>

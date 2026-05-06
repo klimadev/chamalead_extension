@@ -580,3 +580,37 @@ body {
 .update-btn.view:hover {
   background: #cbd5e1;
 }
+
+.update-checking {
+  font-size: 13px;
+  color: #0ea5e9;
+  padding: 8px 0;
+  font-style: italic;
+}
+
+.update-download-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 0;
+  padding: 12px;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.update-direct-link {
+  font-size: 10px;
+  color: #0ea5e9;
+  word-break: break-all;
+  padding: 6px 8px;
+  background: #ffffff;
+  border-radius: 4px;
+  border: 1px solid #e2e8f0;
+  text-decoration: none;
+}
+
+.update-direct-link:hover {
+  text-decoration: underline;
+  background: #f1f5f9;
+}
