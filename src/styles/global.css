@@ -614,3 +614,10 @@ body {
   text-decoration: underline;
   background: #f1f5f9;
 }
+
+.update-never-checked {
+  font-size: 13px;
+  color: #64748b;
+  padding: 12px 0;
+  font-style: italic;
+}

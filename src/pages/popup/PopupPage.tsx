@@ -27,11 +27,15 @@ export function PopupPage() {
   const { status: wppStatus } = useWppStatus()
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
   const [checkingUpdate, setCheckingUpdate] = useState(false)
+  const [hasEverChecked, setHasEverChecked] = useState(false)
 
   const loadUpdateInfo = useCallback(() => {
     chrome.runtime.sendMessage({ type: 'CHAMALEAD_UPDATE_GET_INFO' }, (response) => {
       if (response) {
         setUpdateInfo(response)
+        if (response.checkedAt) {
+          setHasEverChecked(true)
+        }
       }
     })
   }, [])
@@ -41,6 +45,7 @@ export function PopupPage() {
     chrome.runtime.sendMessage({ type: 'CHAMALEAD_UPDATE_CHECK_NOW' }, (response) => {
       if (response) {
         setUpdateInfo(response)
+        setHasEverChecked(true)
       }
       setCheckingUpdate(false)
     })
@@ -148,14 +153,6 @@ export function PopupPage() {
                     <dt className="update-label">Versão atual:</dt>
                     <dd className="update-value">v{updateInfo?.currentVersion ?? EXT_VERSION}</dd>
                   </div>
-                  {updateInfo?.checkedAt && (
-                    <div className="update-info-row">
-                      <dt className="update-label">Última verificação:</dt>
-                      <dd className="update-value">
-                        {new Date(updateInfo.checkedAt).toLocaleString('pt-BR')}
-                      </dd>
-                    </div>
-                  )}
                 </dl>
 
                 <button
@@ -166,15 +163,15 @@ export function PopupPage() {
                   {checkingUpdate ? 'Verificando...' : 'Verificar agora'}
                 </button>
 
-                {updateInfo?.error && (
-                  <p className="update-error" role="alert">{updateInfo.error}</p>
-                )}
-
                 {checkingUpdate && (
                   <p className="update-checking" role="status">Verificando atualizações...</p>
                 )}
 
-                {updateInfo?.available && !checkingUpdate && (
+                {!checkingUpdate && updateInfo?.error && (
+                  <p className="update-error" role="alert">{updateInfo.error}</p>
+                )}
+
+                {!checkingUpdate && updateInfo?.available && (
                   <div className="update-notice" role="alert" aria-label="Atualização disponível">
                     <h3 className="update-version">Nova versão: v{updateInfo.latestVersion}</h3>
                     {updateInfo.changelog ? (
@@ -209,8 +206,12 @@ export function PopupPage() {
                   </div>
                 )}
 
-                {!updateInfo?.available && !updateInfo?.error && updateInfo?.checkedAt && (
+                {!checkingUpdate && !updateInfo?.available && !updateInfo?.error && updateInfo?.checkedAt && (
                   <p className="update-no-updates">✓ Extensão está atualizada.</p>
+                )}
+
+                {!hasEverChecked && !checkingUpdate && (
+                  <p className="update-never-checked">Clique em "Verificar agora" para buscar atualizações.</p>
                 )}
               </div>
             </Card>

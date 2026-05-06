@@ -361,8 +361,9 @@ chrome.runtime.onMessage.addListener(
     }
 
     if (message?.type === 'CHAMALEAD_UPDATE_CHECK_NOW') {
-      checkForUpdates().then(() => {
-        getUpdateInfo().then((info) => {
+      checkForUpdates()
+        .then(() => getUpdateInfo())
+        .then((info) => {
           sendResponse(info ?? {
             available: false,
             currentVersion: chrome.runtime.getManifest().version,
@@ -374,7 +375,20 @@ chrome.runtime.onMessage.addListener(
             checkedAt: new Date().toISOString(),
           })
         })
-      })
+        .catch((error) => {
+          console.error('[ChamaLead] Update check error:', error)
+          sendResponse({
+            available: false,
+            currentVersion: chrome.runtime.getManifest().version,
+            latestVersion: '',
+            releaseUrl: '',
+            downloadUrl: null,
+            changelog: null,
+            publishedAt: null,
+            checkedAt: new Date().toISOString(),
+            error: String(error),
+          })
+        })
       return true
     }
 
