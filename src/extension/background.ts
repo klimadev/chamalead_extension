@@ -415,7 +415,6 @@ chrome.runtime.onMessage.addListener(
 
 // Update checking constants
 const GITHUB_REPO = 'klimadev/chamalead_extension'
-const UPDATE_CHECK_INTERVAL = 6 * 60 * 60 * 1000 // 6 hours
 
 // Version comparison helper
 function isNewerVersion(v1: string, v2: string): boolean {
@@ -491,19 +490,6 @@ async function checkForUpdates(): Promise<void> {
     await setUpdateInfo(errorInfo)
     console.error('[ChamaLead] Update check failed:', error)
   }
-};
-
-// Check for updates on startup and set alarm
-checkForUpdates();
-
-// Schedule recurring update checks with chrome.alarms (MV3 compatible)
-if (chrome.alarms) {
-  chrome.alarms.create('CHAMALEAD_UPDATE_CHECK', { periodInMinutes: UPDATE_CHECK_INTERVAL / 60000 })
-  chrome.alarms.onAlarm.addListener((alarm) => {
-    if (alarm.name === 'CHAMALEAD_UPDATE_CHECK') {
-      void checkForUpdates()
-    }
-  })
 }
 
 // Resume interrupted bulk send if any

@@ -38,6 +38,8 @@ npm run lint
 1. `package.json` - `"version"` field
 2. `vite.config.ts` - `VERSION` constant (this sets the manifest version)
 
+**MANDATORY ORDER:** Increment version FIRST, then run `npm run build` to validate.
+
 Version format: `0.1.x` (start from 0.1.0)
 
 ### Semantic Versioning Guidelines
@@ -50,7 +52,7 @@ Increment based on the type of change:
 | New features, new functionality | **Minor** (0.x.0 → 0.x+1.0) | 0.1.0 → 0.2.0 |
 | Breaking changes, API changes | **Major** (x.0.0 → x+1.0.0) | 0.1.0 → 1.0.0 |
 
-**IMPORTANT:** Run `npm run build` BEFORE committing to validate the version increment was correct.
+**IMPORTANT:** Version must be incremented BEFORE running `npm run build`. The build validates the new version is correct.
 
 ## Release Changelog Guidelines
 

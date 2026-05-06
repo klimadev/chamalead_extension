@@ -19,6 +19,7 @@ interface UpdateInfo {
 const TABS: TabItem[] = [
   { id: 'chats', label: 'Conversas' },
   { id: 'bulk', label: 'Envio em Massa' },
+  { id: 'updates', label: 'Atualizações' },
   { id: 'about', label: 'Sobre' },
 ]
 
@@ -27,12 +28,23 @@ export function PopupPage() {
   const { status: wppStatus } = useWppStatus()
   const { chats, total, limitedTo } = useWppChats(wppStatus)
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
+  const [checkingUpdate, setCheckingUpdate] = useState(false)
 
   const loadUpdateInfo = useCallback(() => {
     chrome.runtime.sendMessage({ type: 'CHAMALEAD_UPDATE_GET_INFO' }, (response) => {
       if (response) {
         setUpdateInfo(response)
       }
+    })
+  }, [])
+
+  const checkForUpdates = useCallback(() => {
+    setCheckingUpdate(true)
+    chrome.runtime.sendMessage({ type: 'CHAMALEAD_UPDATE_CHECK_NOW' }, (response) => {
+      if (response) {
+        setUpdateInfo(response)
+      }
+      setCheckingUpdate(false)
     })
   }, [])
 
@@ -47,45 +59,6 @@ export function PopupPage() {
   const handleViewRelease = useCallback(() => {
     chrome.runtime.sendMessage({ type: 'CHAMALEAD_UPDATE_VIEW_RELEASE' }, () => {})
   }, [])
-
-  const renderUpdateNotice = () => {
-    if (!updateInfo?.available) return null
-
-    const changelogPreview = updateInfo.changelog
-      ? updateInfo.changelog.length > 200
-        ? `${updateInfo.changelog.substring(0, 200)}...`
-        : updateInfo.changelog
-      : 'Nenhuma informação disponível.'
-
-    return (
-      <aside className="update-notice" role="alert" aria-label="Atualização disponível">
-        <Card title="Atualização Disponível">
-          <div className="update-notice-content">
-            <p className="update-version">Nova versão: v{updateInfo.latestVersion}</p>
-            <p className="update-current">Versão atual: v{updateInfo.currentVersion}</p>
-            <details className="update-changelog-preview">
-              <summary className="muted">Changelog</summary>
-              <p className="changelog-text">{changelogPreview}</p>
-            </details>
-            <div className="update-actions" role="group" aria-label="Ações de atualização">
-              {updateInfo.downloadUrl ? (
-                <button className="update-btn download" onClick={handleDownload}>
-                  Baixar atualização
-                </button>
-              ) : (
-                <button className="update-btn view" onClick={handleViewRelease}>
-                  Ver release
-                </button>
-              )}
-              <button className="update-btn view" onClick={handleViewRelease}>
-                Ver no GitHub
-              </button>
-            </div>
-          </div>
-        </Card>
-      </aside>
-    )
-  }
 
   return (
     <main className="page" style={{ width: 380 }} role="main" aria-label="ChamaLead - Extensão WhatsApp">
@@ -114,8 +87,6 @@ export function PopupPage() {
             </section>
           </Card>
         </header>
-
-        {renderUpdateNotice()}
 
         <nav aria-label="Navegação principal">
           <Tabs tabs={TABS} activeTab={activeTab} onTabChange={setActiveTab} />
@@ -213,6 +184,72 @@ export function PopupPage() {
           </section>
         )}
 
+        {activeTab === 'updates' && (
+          <section aria-label="Atualizações">
+            <Card title="Atualizações">
+              <div className="updates-content">
+                <dl className="update-info">
+                  <div className="update-info-row">
+                    <dt className="update-label">Versão atual:</dt>
+                    <dd className="update-value">v{updateInfo?.currentVersion ?? EXT_VERSION}</dd>
+                  </div>
+                  {updateInfo?.checkedAt && (
+                    <div className="update-info-row">
+                      <dt className="update-label">Última verificação:</dt>
+                      <dd className="update-value">
+                        {new Date(updateInfo.checkedAt).toLocaleString('pt-BR')}
+                      </dd>
+                    </div>
+                  )}
+                </dl>
+
+                <button
+                  className="update-btn check"
+                  onClick={checkForUpdates}
+                  disabled={checkingUpdate}
+                >
+                  {checkingUpdate ? 'Verificando...' : 'Verificar agora'}
+                </button>
+
+                {updateInfo?.error && (
+                  <p className="update-error" role="alert">{updateInfo.error}</p>
+                )}
+
+                {updateInfo?.available && (
+                  <div className="update-notice" role="alert" aria-label="Atualização disponível">
+                    <h3 className="update-version">Nova versão: v{updateInfo.latestVersion}</h3>
+                    {updateInfo.changelog ? (
+                      <details className="update-changelog">
+                        <summary className="muted">Changelog</summary>
+                        <div className="changelog-text">{updateInfo.changelog}</div>
+                      </details>
+                    ) : (
+                      <p className="muted">Nenhuma informação disponível.</p>
+                    )}
+                    <div className="update-actions" role="group" aria-label="Ações de atualização">
+                      {updateInfo.downloadUrl ? (
+                        <button className="update-btn download" onClick={handleDownload}>
+                          Baixar atualização
+                        </button>
+                      ) : (
+                        <button className="update-btn view" onClick={handleViewRelease}>
+                          Ver release
+                        </button>
+                      )}
+                      <button className="update-btn view" onClick={handleViewRelease}>
+                        Ver no GitHub
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {!updateInfo?.available && !updateInfo?.error && updateInfo?.checkedAt && (
+                  <p className="update-no-updates">✓ Extensão está atualizada.</p>
+                )}
+              </div>
+            </Card>
+          </section>
+        )}
 
       </div>
     </main>
