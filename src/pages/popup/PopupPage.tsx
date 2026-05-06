@@ -7,6 +7,7 @@ declare const EXT_VERSION: string
 const TABS: TabItem[] = [
   { id: 'chats', label: 'Conversas' },
   { id: 'bulk', label: 'Envio Bulk' },
+  { id: 'about', label: 'Sobre' },
 ]
 
 export function PopupPage() {
@@ -88,6 +89,39 @@ export function PopupPage() {
                 Conecte-se ao WhatsApp primeiro para usar o envio em massa.
               </p>
             )}
+          </Card>
+        )}
+
+        {activeTab === 'about' && (
+          <Card title="Sobre">
+            <div className="about-content">
+              <div className="about-logo">CL</div>
+              <h2>ChamaLead</h2>
+              <p className="about-version">Versao {EXT_VERSION}</p>
+              <p className="about-description">
+                Extensao WhatsApp para automacao de mensagens e envio em massa.
+              </p>
+              <div className="about-features">
+                <h3>Recursos</h3>
+                <ul>
+                  <li>Envio em massa via CSV</li>
+                  <li>Audio massivo (PTT)</li>
+                  <li>Humanizado com intervalos</li>
+                  <li>Modo pausa/retomada</li>
+                </ul>
+              </div>
+              <div className="about-tech">
+                <h3>Tecnologias</h3>
+                <ul>
+                  <li>React 19 + TypeScript</li>
+                  <li>WPPConnect WA-JS</li>
+                  <li>Chrome Extension MV3</li>
+                </ul>
+              </div>
+              <p className="about-footer">
+                Desenvolvido com ❤ para automacao WhatsApp
+              </p>
+            </div>
           </Card>
         )}
 
