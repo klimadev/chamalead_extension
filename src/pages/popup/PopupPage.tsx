@@ -8,7 +8,7 @@ const TABS: TabItem[] = [
 ]
 
 export function PopupPage() {
-  const [activeTab, setActiveTab] = useState('chats')
+  const [activeTab, setActiveTab] = useState('bulk')
   const { status: wppStatus } = useWppStatus()
   const { chats, total, limitedTo } = useWppChats(wppStatus)
 
