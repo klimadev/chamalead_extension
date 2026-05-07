@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.1.48] - 2026-05-07
+### Changed
+- Instagram popup copy is now shorter and more scannable across loading, empty, error, and action states
+- Popup site/status text now uses tighter labels and descriptions for narrow popup layouts
+
+## [0.1.47] - 2026-05-07
+### Changed
+- Instagram profile consultation now runs only on popup open or manual refresh instead of polling in the background
+- Instagram profile presentation now uses a denser summary header, stat cards, and a cleaner details grid
+
 ## [0.1.46] - 2026-05-07
 ### Fixed
 - Instagram profile bridge now reads session tokens with the same SSR selectors as the working console script

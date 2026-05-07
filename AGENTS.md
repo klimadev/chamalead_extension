@@ -32,6 +32,12 @@ npm run lint
 
 **Note:** No test framework configured. If adding tests, use Vitest with `vitest run` for single test or `vitest` for watch mode.
 
+## Popup Copy
+
+- Keep popup-facing copy short, scannable, and action-oriented.
+- Prefer titles, chips, and labels that fit a narrow popup without wrapping.
+- Use concise retry/status text for Instagram and other site-specific flows.
+
 ## Versioning Pattern
 
 **CRITICAL: ALWAYS increment version** in BOTH files when making ANY code changes:

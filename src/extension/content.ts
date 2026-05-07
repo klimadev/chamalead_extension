@@ -1,4 +1,4 @@
-console.log('[ChamaLead] Content script loaded, version: 0.1.46')
+console.log('[ChamaLead] Content script loaded, version: 0.1.48')
 console.log('[ChamaLead] Current URL:', window.location.href)
 console.log('[ChamaLead] Document readyState:', document.readyState)
 
@@ -300,7 +300,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         success: false,
         error: {
           code: 'network_error',
-          message: 'Timeout while waiting for Instagram profile data',
+          message: 'Tempo esgotado ao consultar o Instagram.',
         },
       })
     }, PAGE_INSTAGRAM_TIMEOUT_MS)

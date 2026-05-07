@@ -2,8 +2,6 @@ import { useCallback, useEffect, useState } from 'react'
 
 import type { InstagramProfileError, InstagramProfileState } from './instagram-profile'
 
-const IG_POLL_INTERVAL_MS = 5000
-
 function createInitialState(): InstagramProfileState {
   return {
     profile: null,
@@ -90,13 +88,8 @@ export function useInstagramProfile(enabled = true) {
 
     void fetchProfile()
 
-    const intervalId = window.setInterval(() => {
-      void fetchProfile()
-    }, IG_POLL_INTERVAL_MS)
-
     return () => {
       cancelled = true
-      window.clearInterval(intervalId)
     }
   }, [enabled, refreshNonce])
 

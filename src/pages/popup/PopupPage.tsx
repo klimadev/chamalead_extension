@@ -67,11 +67,11 @@ function SiteUnavailableCard({ siteLabel, siteDescription }: { siteLabel: string
           <h3 className="status-panel-title">{siteLabel}</h3>
           <p className="status-panel-description">{siteDescription}</p>
         </div>
-        <div className="status-chip status-chip--neutral">Sem features</div>
+        <div className="status-chip status-chip--neutral">Sem recursos</div>
       </div>
 
       <p className="muted">
-        As abas Atualizações e Sobre continuam disponíveis. Abra o WhatsApp Web para usar o envio em massa.
+        Atualizações e Sobre continuam disponíveis. Abra o WhatsApp Web para enviar mensagens.
       </p>
     </section>
   )
@@ -142,9 +142,9 @@ export function PopupPage() {
               <section className="status-panel" aria-label="Instagram operacional">
                 <div className="status-panel-header">
                   <div>
-                    <p className="section-kicker">Instagram operacional</p>
-                    <h3 className="status-panel-title">Perfil aberto disponível</h3>
-                    <p className="status-panel-description">A extensão pode consultar o perfil atualmente aberto no Instagram Web.</p>
+                    <p className="section-kicker">Instagram ativo</p>
+                    <h3 className="status-panel-title">Perfil pronto</h3>
+                    <p className="status-panel-description">A extensão pode ler o perfil aberto agora.</p>
                   </div>
                   <div className="status-chip status-chip--success">Ativo</div>
                 </div>
@@ -177,14 +177,14 @@ export function PopupPage() {
                     <p className="about-version">Versão {EXT_VERSION}</p>
                   </div>
                 </div>
-                <p className="about-description">Extensão modular site-aware para automações específicas por site, começando com WhatsApp Web e Instagram.</p>
+                <p className="about-description">Extensão site-aware para WhatsApp Web e Instagram, com foco em operações rápidas no popup.</p>
                 <div className="about-grid">
                   <div className="about-block">
                     <h4>Capacidades</h4>
                     <ul>
                       <li>Envio em massa via CSV</li>
                       <li>Áudio massivo (PTT)</li>
-                      <li>Leitura de perfil do Instagram</li>
+                      <li>Perfil do Instagram</li>
                       <li>Intervalos humanizados</li>
                       <li>Pausa, retomada e cancelamento</li>
                       <li>Base preparada para features por site</li>
