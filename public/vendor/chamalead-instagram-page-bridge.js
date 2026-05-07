@@ -31,11 +31,11 @@
   function readSessionContext() {
     return {
       actorID: readHtmlToken(/"actorID":"(\d+)"/) || readHtmlToken(/"NON_FACEBOOK_USER_ID":"(\d+)"/) || '',
-      profileId: readHtmlToken(/"profile_id":"(\d+)"/) || readHtmlToken(/"id":"(\d+)"/) || readHtmlToken(/"pk":"(\d+)"/) || '',
+      profileId: readHtmlToken(/"profile_id":"(\d+)"/) || readHtmlToken(/"id":"(\d{8,})"/) || readHtmlToken(/"pk":"(\d+)"/) || '',
       csrf: getMetaContent('csrf-token') || readHtmlToken(/"csrf_token":"([^"]+)"/) || '',
-      lsd: getMetaContent('lsd') || readHtmlToken(/"lsd":"([^"]+)"/) || '',
-      fbDtsg: readHtmlToken(/"fb_dtsg":"([^"]+)"/) || '',
-      appId: readHtmlToken(/"appId":"([^"]+)"/) || getMetaContent('app-id') || '',
+      lsd: getMetaContent('lsd') || readHtmlToken(/"LSD",\[\],\{"token":"([^"]+)"/) || '',
+      fbDtsg: readHtmlToken(/"DTSGInitialData",\[\],\{"token":"([^"]+)"/) || '',
+      appId: readHtmlToken(/"APP_ID":"(\d+)"/) || getMetaContent('app-id') || '',
     }
   }
 
@@ -63,30 +63,38 @@
     }
   }
 
-  async function fetchProfile(username) {
+  async function fetchProfile() {
     const context = readSessionContext()
 
     if (!isProfilePage()) {
       return { success: false, error: { code: 'non_profile_page', message: 'Abra um perfil do Instagram para consultar os detalhes.' } }
     }
 
-    if (!context.csrf || !context.lsd || !context.fbDtsg || !context.appId || (!context.actorID && !context.profileId)) {
+    if (!context.csrf || !context.lsd || !context.fbDtsg || !context.appId || !context.actorID || !context.profileId) {
       return { success: false, error: { code: 'missing_tokens', message: 'Não foi possível localizar os tokens de sessão necessários.' } }
     }
 
     try {
       const variables = {
-        username: username || getProfileUsername(),
-        actorID: context.actorID || context.profileId,
-        profile_id: context.profileId,
-        lsd: context.lsd,
-        fb_dtsg: context.fbDtsg,
-        appId: context.appId,
+        enable_integrity_filters: true,
+        id: context.profileId,
+        __relay_internal__pv__PolarisCannesGuardianExperienceEnabledrelayprovider: true,
+        __relay_internal__pv__PolarisCASB976ProfileEnabledrelayprovider: false,
+        __relay_internal__pv__PolarisWebSchoolsEnabledrelayprovider: false,
+        __relay_internal__pv__PolarisRepostsConsumptionEnabledrelayprovider: false,
       }
 
       const body = new URLSearchParams({
-        doc_id: FIXED_DOC_ID,
+        av: context.actorID,
+        __user: '0',
+        __a: '1',
+        fb_dtsg: context.fbDtsg,
+        lsd: context.lsd,
+        fb_api_caller_class: 'RelayModern',
+        fb_api_req_friendly_name: 'PolarisProfilePageContentQuery',
+        server_timestamps: 'true',
         variables: JSON.stringify(variables),
+        doc_id: FIXED_DOC_ID,
       })
 
       const response = await fetch('https://www.instagram.com/graphql/query', {
@@ -95,9 +103,9 @@
         headers: {
           'content-type': 'application/x-www-form-urlencoded',
           'x-csrftoken': context.csrf,
-          'x-ig-app-id': context.appId,
           'x-fb-lsd': context.lsd,
-          'x-requested-with': 'XMLHttpRequest',
+          'x-ig-app-id': context.appId,
+          'x-fb-friendly-name': 'PolarisProfilePageContentQuery',
         },
         body,
       })

@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.46] - 2026-05-07
+### Fixed
+- Instagram profile bridge now reads session tokens with the same SSR selectors as the working console script
+- Instagram profile query now sends the reference GraphQL payload shape, avoiding false `missing_tokens` failures on valid sessions
+
 ## [0.1.45] - 2026-05-07
 ### Added
 - Instagram profile details support in the popup for the active Instagram Web profile
