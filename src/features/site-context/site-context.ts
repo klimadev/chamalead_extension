@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
 
-export type SiteFeatureTabId = 'bulk'
+export type SiteFeatureTabId = 'bulk' | 'profile-details'
+
+export type SupportedSiteId = 'whatsapp' | 'instagram'
 
 export interface SupportedSiteDefinition {
-  id: 'whatsapp'
+  id: SupportedSiteId
   label: string
   description: string
   featureTabs: readonly SiteFeatureTabId[]
@@ -50,6 +52,14 @@ export const WHATSAPP_SITE: SupportedSiteDefinition = {
   matches: (url) => url.startsWith('https://web.whatsapp.com/'),
 }
 
+export const INSTAGRAM_SITE: SupportedSiteDefinition = {
+  id: 'instagram',
+  label: 'Instagram',
+  description: 'Detalhes do perfil atualmente aberto no Instagram Web.',
+  featureTabs: ['profile-details'],
+  matches: (url) => url.startsWith('https://www.instagram.com/'),
+}
+
 export const UNSUPPORTED_SITE: UnsupportedSiteDefinition = {
   id: 'unsupported',
   label: 'Site não suportado',
@@ -58,7 +68,7 @@ export const UNSUPPORTED_SITE: UnsupportedSiteDefinition = {
   matches: () => false,
 }
 
-export const SITE_REGISTRY = [WHATSAPP_SITE] as const
+export const SITE_REGISTRY = [WHATSAPP_SITE, INSTAGRAM_SITE] as const
 
 const SITE_REFRESH_INTERVAL_MS = 2000
 

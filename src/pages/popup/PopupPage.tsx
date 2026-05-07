@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { BulkSendForm, useActiveSiteContext, useWppStatus, type SiteFeatureTabId } from '@/features'
+import { BulkSendForm, InstagramProfileDetails, useActiveSiteContext, useInstagramProfile, useWppStatus, type SiteFeatureTabId } from '@/features'
 import { Card, Tabs, type TabItem } from '@/ui'
 import { UpdatesTab } from './UpdatesTab'
 
@@ -12,6 +12,7 @@ const GLOBAL_TABS: TabItem[] = [
 
 const SITE_TAB_ITEMS: Record<SiteFeatureTabId, TabItem> = {
   bulk: { id: 'bulk', label: 'Envio em Massa' },
+  'profile-details': { id: 'profile-details', label: 'Perfil' },
 }
 
 function WhatsAppStatusPanel({ wppStatus }: { wppStatus: ReturnType<typeof useWppStatus>['status'] }) {
@@ -109,13 +110,20 @@ function WhatsAppBulkSection({ wppStatus }: { wppStatus: ReturnType<typeof useWp
   )
 }
 
+function InstagramProfileSection({ profileState, onRetry }: { profileState: ReturnType<typeof useInstagramProfile>['profileState']; onRetry: ReturnType<typeof useInstagramProfile>['refresh'] }) {
+  return <InstagramProfileDetails profileState={profileState} onRetry={onRetry} />
+}
+
 export function PopupPage() {
   const [activeTab, setActiveTab] = useState('bulk')
   const { siteContext } = useActiveSiteContext()
   const { status: wppStatus } = useWppStatus(siteContext.state === 'resolved' && siteContext.isSupported)
+  const { profileState, refresh } = useInstagramProfile(siteContext.state === 'resolved' && siteContext.site?.id === 'instagram')
 
   const siteSpecificTabs = siteContext.site?.id === 'whatsapp'
     ? [SITE_TAB_ITEMS.bulk]
+    : siteContext.site?.id === 'instagram'
+      ? [SITE_TAB_ITEMS['profile-details']]
     : []
 
   const availableTabs = [...siteSpecificTabs, ...GLOBAL_TABS]
@@ -128,8 +136,19 @@ export function PopupPage() {
           <Card title={`ChamaLead v${EXT_VERSION}`} className="status-card">
             {siteContext.state === 'loading' ? (
               <SiteLoadingCard />
-            ) : siteContext.isSupported ? (
+            ) : siteContext.site?.id === 'whatsapp' ? (
               <WhatsAppStatusPanel wppStatus={wppStatus} />
+            ) : siteContext.site?.id === 'instagram' ? (
+              <section className="status-panel" aria-label="Instagram operacional">
+                <div className="status-panel-header">
+                  <div>
+                    <p className="section-kicker">Instagram operacional</p>
+                    <h3 className="status-panel-title">Perfil aberto disponível</h3>
+                    <p className="status-panel-description">A extensão pode consultar o perfil atualmente aberto no Instagram Web.</p>
+                  </div>
+                  <div className="status-chip status-chip--success">Ativo</div>
+                </div>
+              </section>
             ) : (
               <SiteUnavailableCard siteLabel={siteContext.siteLabel} siteDescription={siteContext.siteDescription} />
             )}
@@ -141,6 +160,10 @@ export function PopupPage() {
         </nav>
 
         {resolvedActiveTab === 'bulk' && siteContext.isSupported && <WhatsAppBulkSection wppStatus={wppStatus} />}
+
+        {resolvedActiveTab === 'profile-details' && siteContext.site?.id === 'instagram' && (
+          <InstagramProfileSection profileState={profileState} onRetry={refresh} />
+        )}
 
         {resolvedActiveTab === 'about' && (
           <section aria-label="Sobre o ChamaLead">
@@ -154,13 +177,14 @@ export function PopupPage() {
                     <p className="about-version">Versão {EXT_VERSION}</p>
                   </div>
                 </div>
-                <p className="about-description">Extensão modular site-aware para automações específicas por site, começando com WhatsApp Web.</p>
+                <p className="about-description">Extensão modular site-aware para automações específicas por site, começando com WhatsApp Web e Instagram.</p>
                 <div className="about-grid">
                   <div className="about-block">
                     <h4>Capacidades</h4>
                     <ul>
                       <li>Envio em massa via CSV</li>
                       <li>Áudio massivo (PTT)</li>
+                      <li>Leitura de perfil do Instagram</li>
                       <li>Intervalos humanizados</li>
                       <li>Pausa, retomada e cancelamento</li>
                       <li>Base preparada para features por site</li>

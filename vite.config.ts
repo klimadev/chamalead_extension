@@ -3,15 +3,15 @@ import react from '@vitejs/plugin-react'
 import { crx, type ManifestV3Export } from '@crxjs/vite-plugin'
 import { fileURLToPath, URL } from 'node:url'
 
-const VERSION = '0.1.44'
+const VERSION = '0.1.45'
 
 const manifest: ManifestV3Export = {
   manifest_version: 3,
   name: 'ChamaLead Extension',
   description: 'Base moderna e componetizada para uma extensao grande.',
   version: VERSION,
-    permissions: ['storage', 'tabs', 'scripting'],
-  host_permissions: ['https://web.whatsapp.com/*'],
+  permissions: ['storage', 'tabs', 'scripting'],
+  host_permissions: ['https://web.whatsapp.com/*', 'https://www.instagram.com/*'],
   background: {
     service_worker: 'src/extension/background.ts',
     type: 'module',
@@ -27,11 +27,20 @@ const manifest: ManifestV3Export = {
       matches: ['https://web.whatsapp.com/*'],
       run_at: 'document_idle',
     },
+    {
+      js: ['src/extension/content.ts'],
+      matches: ['https://www.instagram.com/*'],
+      run_at: 'document_idle',
+    },
   ],
   web_accessible_resources: [
     {
       resources: ['vendor/wppconnect-wa.js', 'vendor/chamalead-page-bridge.js'],
       matches: ['https://web.whatsapp.com/*'],
+    },
+    {
+      resources: ['vendor/chamalead-instagram-page-bridge.js'],
+      matches: ['https://www.instagram.com/*'],
     },
   ],
 }

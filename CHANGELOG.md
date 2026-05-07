@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.45] - 2026-05-07
+### Added
+- Instagram profile details support in the popup for the active Instagram Web profile
+- Read-only Instagram profile consultation through a page-context bridge and GraphQL query
+
+### Changed
+- Site detection and manifest wiring now cover both WhatsApp and Instagram
+- Popup tabs now switch between WhatsApp bulk send and Instagram profile details by site
+
+### Fixed
+- Instagram page injection is isolated from WhatsApp WA-JS behavior
+
 ## [0.1.44] - 2026-05-07
 ### Added
 - Active site detection in the popup with a clear unsupported-site state

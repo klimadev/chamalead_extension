@@ -1,4 +1,5 @@
 export {
+  INSTAGRAM_SITE,
   SITE_REGISTRY,
   UNSUPPORTED_SITE,
   WHATSAPP_SITE,
@@ -13,5 +14,6 @@ export type {
   SiteDefinition,
   SiteFeatureTabId,
   SupportedSiteDefinition,
+  SupportedSiteId,
   UnsupportedSiteDefinition,
 } from './site-context'
