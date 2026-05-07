@@ -14,6 +14,37 @@
     return match?.[1] || ''
   }
 
+  function readCount(...values) {
+    for (const value of values) {
+      const count = Number(value)
+      if (Number.isFinite(count)) {
+        return count
+      }
+    }
+
+    return null
+  }
+
+  function readBoolean(...values) {
+    for (const value of values) {
+      if (typeof value === 'boolean') {
+        return value
+      }
+    }
+
+    return null
+  }
+
+  function readString(...values) {
+    for (const value of values) {
+      if (typeof value === 'string' && value.length > 0) {
+        return value
+      }
+    }
+
+    return null
+  }
+
   function getProfileUsername() {
     const segments = window.location.pathname.split('/').filter(Boolean)
     if (segments.length !== 1) {
@@ -40,26 +71,26 @@
   }
 
   function normalizeProfile(user) {
-    const followerCount = Number(user?.edge_followed_by?.count)
-    const followingCount = Number(user?.edge_follow?.count)
-    const postCount = Number(user?.edge_owner_to_timeline_media?.count)
+    const followerCount = readCount(user?.edge_followed_by?.count, user?.follower_count)
+    const followingCount = readCount(user?.edge_follow?.count, user?.following_count)
+    const postCount = readCount(user?.edge_owner_to_timeline_media?.count, user?.media_count)
 
     return {
       id: String(user?.id || user?.pk || ''),
       username: String(user?.username || ''),
       fullName: String(user?.full_name || user?.fullName || ''),
       biography: String(user?.biography || user?.bio || ''),
-      profileImageUrl: String(user?.profile_pic_url_hd || user?.profile_pic_url || ''),
+      profileImageUrl: String(user?.profile_pic_url_hd || user?.hd_profile_pic_url_info?.url || user?.profile_pic_url || ''),
       websiteUrl: user?.external_url ? String(user.external_url) : null,
-      followerCount: Number.isFinite(followerCount) ? followerCount : null,
-      followingCount: Number.isFinite(followingCount) ? followingCount : null,
-      postCount: Number.isFinite(postCount) ? postCount : null,
-      isPrivate: typeof user?.is_private === 'boolean' ? user.is_private : null,
-      isVerified: typeof user?.is_verified === 'boolean' ? user.is_verified : null,
-      isBusinessAccount: typeof user?.is_business_account === 'boolean' ? user.is_business_account : null,
-      isProfessionalAccount: typeof user?.is_professional_account === 'boolean' ? user.is_professional_account : null,
-      linkedFacebookPage: user?.connected_fb_page?.name ? String(user.connected_fb_page.name) : null,
-      friendshipStatus: String(user?.friendship_status || user?.relationship_status || '' ) || null,
+      followerCount,
+      followingCount,
+      postCount,
+      isPrivate: readBoolean(user?.is_private),
+      isVerified: readBoolean(user?.is_verified),
+      isBusinessAccount: readBoolean(user?.is_business_account, user?.is_business),
+      isProfessionalAccount: readBoolean(user?.is_professional_account),
+      linkedFacebookPage: readString(user?.connected_fb_page?.name, user?.linked_fb_info?.linked_fb_page?.name),
+      friendshipStatus: readString(user?.friendship_status, user?.relationship_status),
     }
   }
 

@@ -1,4 +1,4 @@
-console.log('[ChamaLead] Content script loaded, version: 0.1.48')
+console.log('[ChamaLead] Content script loaded, version: 0.1.49')
 console.log('[ChamaLead] Current URL:', window.location.href)
 console.log('[ChamaLead] Document readyState:', document.readyState)
 

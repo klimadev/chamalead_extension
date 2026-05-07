@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.49] - 2026-05-07
+### Fixed
+- Instagram profile bridge now accepts the newer payload shape with top-level follower, following, and media counters
+- Instagram profile details now fall back to `linked_fb_info` and `is_business` when the legacy fields are absent
+
 ## [0.1.48] - 2026-05-07
 ### Changed
 - Instagram popup copy is now shorter and more scannable across loading, empty, error, and action states
