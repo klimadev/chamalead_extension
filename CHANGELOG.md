@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.44] - 2026-05-07
+### Added
+- Active site detection in the popup with a clear unsupported-site state
+- Lightweight site registry foundation for future site-specific features
+
+### Changed
+- Popup composition now separates WhatsApp-specific actions from global tabs like updates and about
+- WhatsApp remains the only operational site in this base architecture change
+
 ## [0.1.42] - 2026-05-06
 ### Changed
 - Refined popup, bulk send, and settings surfaces into a more cohesive operational layout.

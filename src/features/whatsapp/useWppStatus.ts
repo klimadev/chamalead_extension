@@ -6,7 +6,7 @@ export interface WppStatus {
   isLoading: boolean
 }
 
-export function useWppStatus() {
+export function useWppStatus(enabled = true) {
   const [status, setStatus] = useState<WppStatus>({
     isReady: false,
     isAuthenticated: false,
@@ -14,6 +14,8 @@ export function useWppStatus() {
   })
 
   useEffect(() => {
+    if (!enabled) return
+
     const checkStatus = async () => {
       console.log('[ChamaLead:hook] Checking WPP status...')
 
@@ -50,13 +52,22 @@ export function useWppStatus() {
       }
     }
 
-    void checkStatus()
+    const loadingTimeoutId = window.setTimeout(() => {
+      setStatus({ isReady: false, isAuthenticated: false, isLoading: true })
+      void checkStatus()
+    }, 0)
+
     const interval = window.setInterval(() => {
       void checkStatus()
     }, 2000)
 
-    return () => window.clearInterval(interval)
-  }, [])
+    return () => {
+      window.clearTimeout(loadingTimeoutId)
+      window.clearInterval(interval)
+    }
+  }, [enabled])
 
-  return { status }
+  return {
+    status: enabled ? status : { isReady: false, isAuthenticated: false, isLoading: false },
+  }
 }

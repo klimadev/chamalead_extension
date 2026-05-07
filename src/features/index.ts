@@ -1,4 +1,6 @@
 export { SettingsForm, useExtensionSettings } from './settings'
 export type { ExtensionSettings } from './settings'
+export { useActiveSiteContext, detectSiteFromUrl, resolveActiveSiteContext } from './site-context'
+export type { ActiveSiteContext, SiteDefinition, SiteFeatureTabId } from './site-context'
 export { useWppChats, useWppStatus, useBulkSend, formatPhoneNumber, BulkSendForm } from './whatsapp'
 export type { WppChat, WppStatus, BulkSendProgress } from './whatsapp'
