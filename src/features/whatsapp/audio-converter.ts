@@ -29,7 +29,9 @@ function buildOggPage(
   headerType: number,
 ): Uint8Array {
   const segments = Math.ceil(packet.length / 255) || 1
-  const headerSize = 27 + segments
+  const needsTerminator = packet.length > 0 && packet.length % 255 === 0
+  const totalSegments = segments + (needsTerminator ? 1 : 0)
+  const headerSize = 27 + totalSegments
   const totalSize = headerSize + packet.length
   const buf = new Uint8Array(totalSize)
   const view = new DataView(buf.buffer)
@@ -56,7 +58,7 @@ function buildOggPage(
   view.setUint32(22, 0, true)
 
   // Number of page segments (1 byte)
-  buf[26] = segments
+  buf[26] = totalSegments
 
   // Segment table: split packet into 255-byte segments
   const tableOffset = 27
@@ -64,9 +66,12 @@ function buildOggPage(
     const size = Math.min(255, packet.length - i * 255)
     buf[tableOffset + i] = size
   }
+  if (needsTerminator) {
+    buf[tableOffset + segments] = 0
+  }
 
   // Data
-  const dataOffset = tableOffset + segments
+  const dataOffset = tableOffset + totalSegments
   buf.set(packet, dataOffset)
 
   // Compute and set CRC32 (over entire page, with CRC field zeroed)
