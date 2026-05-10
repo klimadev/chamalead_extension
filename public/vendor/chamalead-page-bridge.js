@@ -143,10 +143,10 @@
         return { success: false, error: 'Send method not available' }
       }
 
-      // Pass the data URL as-is — WhatsApp Web handles transcoding
       const result = await sendMethod.call(wpp.chat, chatId, audioBase64, {
         type: 'audio',
         isPtt: true,
+        mimetype: 'audio/ogg; codecs=opus',
       })
       console.log('[ChamaLead:bridge] Audio sent to', phoneNumber, result)
       return { success: true }

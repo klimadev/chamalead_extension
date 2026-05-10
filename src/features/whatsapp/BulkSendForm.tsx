@@ -3,6 +3,7 @@ import { useBulkSend, formatPhoneNumber } from './useBulkSend'
 import { useWppStatus } from './useWppStatus'
 import type { BulkSendProgress } from './useBulkSend'
 import { extractPlaceholders, validatePlaceholders, type CsvRecipient } from './csv-messages'
+import { convertToOggOpus, AudioConversionError } from './audio-converter'
 
 import { Button } from '@/ui'
 
@@ -146,7 +147,6 @@ export function BulkSendForm() {
   const [previewNumbers, setPreviewNumbers] = useState<string[]>([])
   const [recipients, setRecipients] = useState<CsvRecipient[]>([])
   const fileReaderRef = useRef<FileReader | null>(null)
-  const audioFileReaderRef = useRef<FileReader | null>(null)
   const { status: wppStatus } = useWppStatus()
   const { progress, logs, loading, startBulkSend, startBulkSendAudio, pauseBulkSend, resumeBulkSend, resetBulkSend } = useBulkSend()
 
@@ -321,7 +321,7 @@ export function BulkSendForm() {
     [previewNumbers]
   )
 
-  const handleAudioUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAudioUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
 
@@ -336,44 +336,18 @@ export function BulkSendForm() {
     setAudioFileName(file.name)
     setAudioBase64('')
 
-    if (audioFileReaderRef.current) {
-      audioFileReaderRef.current.abort()
-    }
-
-    const reader = new FileReader()
-    audioFileReaderRef.current = reader
-
-    reader.onload = (event) => {
-      audioFileReaderRef.current = null
-      const result = event.target?.result
-      if (!result || typeof result !== 'string') {
-        setConversionError('Erro ao ler arquivo de áudio')
-        setIsConverting(false)
-        setAudioFileName('')
-        return
-      }
-
-      setAudioBase64(result)
-      setIsConverting(false)
-    }
-
-    reader.onabort = () => {
-      if (audioFileReaderRef.current === reader) {
-        audioFileReaderRef.current = null
-      }
-      setIsConverting(false)
-    }
-
-    reader.onerror = () => {
-      if (audioFileReaderRef.current === reader) {
-        audioFileReaderRef.current = null
-      }
-      setConversionError('Erro ao ler arquivo de áudio')
-      setIsConverting(false)
+    try {
+      const conversion = await convertToOggOpus(file)
+      setAudioBase64(conversion.dataUrl)
+    } catch (error) {
+      const message = error instanceof AudioConversionError
+        ? error.message
+        : 'Erro ao converter áudio. Tente outro formato.'
+      setConversionError(message)
       setAudioFileName('')
+    } finally {
+      setIsConverting(false)
     }
-
-    reader.readAsDataURL(file)
   }
 
   const handleAudioReset = () => {
@@ -381,10 +355,6 @@ export function BulkSendForm() {
     setAudioFileName('')
     setIsConverting(false)
     setConversionError('')
-    if (audioFileReaderRef.current) {
-      audioFileReaderRef.current.abort()
-      audioFileReaderRef.current = null
-    }
   }
 
   const handleSendAudio = () => {
@@ -587,11 +557,11 @@ export function BulkSendForm() {
               <div className="audio-preview">
                 <div className="audio-preview-meta">
                   <span className="audio-preview-name">{audioFileName}</span>
-                  <span className="audio-preview-label">Carregando...</span>
+                  <span className="audio-preview-label">Convertendo...</span>
                 </div>
                 <div className="audio-converting-indicator">
                   <span className="converting-spinner" />
-                  <span>Lendo arquivo...</span>
+                  <span>Convertendo para OGG/Opus...</span>
                 </div>
               </div>
             )}
