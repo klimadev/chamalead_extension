@@ -143,21 +143,10 @@
         return { success: false, error: 'Send method not available' }
       }
 
-      // Always ensure correct OGG/Opus MIME for WhatsApp PTT
-      let mediaData = audioBase64
-      if (mediaData && !mediaData.startsWith('data:')) {
-        mediaData = `data:audio/ogg;codecs=opus;base64,${mediaData}`
-      } else if (mediaData && mediaData.startsWith('data:')) {
-        // Force correct MIME type even if already a data URL
-        const base64Part = mediaData.substring(mediaData.indexOf('base64,') + 7)
-        mediaData = `data:audio/ogg;codecs=opus;base64,${base64Part}`
-      }
-
-      const result = await sendMethod.call(wpp.chat, chatId, mediaData, {
+      // Pass the data URL as-is — WhatsApp Web handles transcoding
+      const result = await sendMethod.call(wpp.chat, chatId, audioBase64, {
         type: 'audio',
         isPtt: true,
-        waveform: true,
-        mimetype: 'audio/ogg; codecs=opus'
       })
       console.log('[ChamaLead:bridge] Audio sent to', phoneNumber, result)
       return { success: true }

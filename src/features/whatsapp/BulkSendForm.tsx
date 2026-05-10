@@ -3,8 +3,7 @@ import { useBulkSend, formatPhoneNumber } from './useBulkSend'
 import { useWppStatus } from './useWppStatus'
 import type { BulkSendProgress } from './useBulkSend'
 import { extractPlaceholders, validatePlaceholders, type CsvRecipient } from './csv-messages'
-import { convertToOggOpus, isAlreadyOggOpus, AudioConversionError } from './audio-converter'
-import type { ConversionResult } from './audio-converter'
+
 import { Button } from '@/ui'
 
 interface CsvData {
@@ -140,7 +139,6 @@ export function BulkSendForm() {
   const [audioBase64, setAudioBase64] = useState('')
   const [audioFileName, setAudioFileName] = useState('')
   const [isConverting, setIsConverting] = useState(false)
-  const [wasConverted, setWasConverted] = useState(false)
   const [conversionError, setConversionError] = useState('')
   const [csvData, setCsvData] = useState<CsvData | null>(null)
   const [selectedColumn, setSelectedColumn] = useState<string>('')
@@ -308,7 +306,6 @@ export function BulkSendForm() {
     setFallbackMessage('')
     setAudioBase64('')
     setAudioFileName('')
-    setWasConverted(false)
     setIsConverting(false)
     setConversionError('')
     setCsvData(null)
@@ -338,7 +335,6 @@ export function BulkSendForm() {
     setIsConverting(true)
     setAudioFileName(file.name)
     setAudioBase64('')
-    setWasConverted(false)
 
     if (audioFileReaderRef.current) {
       audioFileReaderRef.current.abort()
@@ -347,7 +343,7 @@ export function BulkSendForm() {
     const reader = new FileReader()
     audioFileReaderRef.current = reader
 
-    reader.onload = async (event) => {
+    reader.onload = (event) => {
       audioFileReaderRef.current = null
       const result = event.target?.result
       if (!result || typeof result !== 'string') {
@@ -357,30 +353,8 @@ export function BulkSendForm() {
         return
       }
 
-      // Fast path: if already OGG/Opus, skip conversion
-      if (isAlreadyOggOpus(file)) {
-        setAudioBase64(result)
-        setWasConverted(false)
-        setIsConverting(false)
-        return
-      }
-
-      // Conversion path
-      try {
-        const converted: ConversionResult = await convertToOggOpus(file)
-        setAudioBase64(converted.dataUrl)
-        setWasConverted(converted.wasConverted)
-        setIsConverting(false)
-      } catch (error) {
-        const message = error instanceof AudioConversionError
-          ? error.message
-          : 'Falha ao converter áudio. Tente outro formato.'
-        setConversionError(message)
-        setAudioBase64('')
-        setAudioFileName('')
-        setWasConverted(false)
-        setIsConverting(false)
-      }
+      setAudioBase64(result)
+      setIsConverting(false)
     }
 
     reader.onabort = () => {
@@ -405,7 +379,6 @@ export function BulkSendForm() {
   const handleAudioReset = () => {
     setAudioBase64('')
     setAudioFileName('')
-    setWasConverted(false)
     setIsConverting(false)
     setConversionError('')
     if (audioFileReaderRef.current) {
@@ -614,11 +587,11 @@ export function BulkSendForm() {
               <div className="audio-preview">
                 <div className="audio-preview-meta">
                   <span className="audio-preview-name">{audioFileName}</span>
-                  <span className="audio-preview-label">Convertendo para WhatsApp...</span>
+                  <span className="audio-preview-label">Carregando...</span>
                 </div>
                 <div className="audio-converting-indicator">
                   <span className="converting-spinner" />
-                  <span>Processando áudio...</span>
+                  <span>Lendo arquivo...</span>
                 </div>
               </div>
             )}
@@ -628,7 +601,7 @@ export function BulkSendForm() {
                 <div className="audio-preview-meta">
                   <span className="audio-preview-name">{audioFileName}</span>
                   <span className="audio-preview-label">
-                    {wasConverted ? 'Convertido para OGG/Opus' : 'OGG/Opus — pronto'}
+                    Pronto para envio
                   </span>
                 </div>
                 <audio controls src={audioBase64} className="audio-player" />
