@@ -3,6 +3,8 @@ import { useBulkSend, formatPhoneNumber } from './useBulkSend'
 import { useWppStatus } from './useWppStatus'
 import type { BulkSendProgress } from './useBulkSend'
 import { extractPlaceholders, validatePlaceholders, type CsvRecipient } from './csv-messages'
+import { convertToOggOpus, isAlreadyOggOpus, AudioConversionError } from './audio-converter'
+import type { ConversionResult } from './audio-converter'
 import { Button } from '@/ui'
 
 interface CsvData {
@@ -137,6 +139,9 @@ export function BulkSendForm() {
   const [fallbackMessage, setFallbackMessage] = useState('')
   const [audioBase64, setAudioBase64] = useState('')
   const [audioFileName, setAudioFileName] = useState('')
+  const [isConverting, setIsConverting] = useState(false)
+  const [wasConverted, setWasConverted] = useState(false)
+  const [conversionError, setConversionError] = useState('')
   const [csvData, setCsvData] = useState<CsvData | null>(null)
   const [selectedColumn, setSelectedColumn] = useState<string>('')
   const [csvError, setCsvError] = useState<string>('')
@@ -303,6 +308,9 @@ export function BulkSendForm() {
     setFallbackMessage('')
     setAudioBase64('')
     setAudioFileName('')
+    setWasConverted(false)
+    setIsConverting(false)
+    setConversionError('')
     setCsvData(null)
     setSelectedColumn('')
     setPreviewNumbers([])
@@ -325,6 +333,13 @@ export function BulkSendForm() {
       return
     }
 
+    setConversionError('')
+    setCsvError('')
+    setIsConverting(true)
+    setAudioFileName(file.name)
+    setAudioBase64('')
+    setWasConverted(false)
+
     if (audioFileReaderRef.current) {
       audioFileReaderRef.current.abort()
     }
@@ -332,34 +347,56 @@ export function BulkSendForm() {
     const reader = new FileReader()
     audioFileReaderRef.current = reader
 
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       audioFileReaderRef.current = null
       const result = event.target?.result
       if (!result || typeof result !== 'string') {
-        setCsvError('Erro ao ler arquivo de áudio')
+        setConversionError('Erro ao ler arquivo de áudio')
+        setIsConverting(false)
+        setAudioFileName('')
         return
       }
 
-      const mimeType = file.type || 'audio/ogg'
-      const base64 = result.split(',')[1] || result
-      const fullBase64 = `data:${mimeType};base64,${base64}`
+      // Fast path: if already OGG/Opus, skip conversion
+      if (isAlreadyOggOpus(file)) {
+        setAudioBase64(result)
+        setWasConverted(false)
+        setIsConverting(false)
+        return
+      }
 
-      setAudioBase64(fullBase64)
-      setAudioFileName(file.name)
-      setCsvError('')
+      // Conversion path
+      try {
+        const converted: ConversionResult = await convertToOggOpus(file)
+        setAudioBase64(converted.dataUrl)
+        setWasConverted(converted.wasConverted)
+        setIsConverting(false)
+      } catch (error) {
+        const message = error instanceof AudioConversionError
+          ? error.message
+          : 'Falha ao converter áudio. Tente outro formato.'
+        setConversionError(message)
+        setAudioBase64('')
+        setAudioFileName('')
+        setWasConverted(false)
+        setIsConverting(false)
+      }
     }
 
     reader.onabort = () => {
       if (audioFileReaderRef.current === reader) {
         audioFileReaderRef.current = null
       }
+      setIsConverting(false)
     }
 
     reader.onerror = () => {
       if (audioFileReaderRef.current === reader) {
         audioFileReaderRef.current = null
       }
-      setCsvError('Erro ao ler arquivo de áudio')
+      setConversionError('Erro ao ler arquivo de áudio')
+      setIsConverting(false)
+      setAudioFileName('')
     }
 
     reader.readAsDataURL(file)
@@ -368,6 +405,9 @@ export function BulkSendForm() {
   const handleAudioReset = () => {
     setAudioBase64('')
     setAudioFileName('')
+    setWasConverted(false)
+    setIsConverting(false)
+    setConversionError('')
     if (audioFileReaderRef.current) {
       audioFileReaderRef.current.abort()
       audioFileReaderRef.current = null
@@ -560,7 +600,7 @@ export function BulkSendForm() {
           <div className="form-group">
             <label className="form-label">Áudio (PTT)</label>
 
-            {!audioBase64 && (
+            {!audioBase64 && !isConverting && (
               <input
                 type="file"
                 accept="audio/*"
@@ -570,11 +610,26 @@ export function BulkSendForm() {
               />
             )}
 
-            {audioFileName && (
+            {isConverting && (
               <div className="audio-preview">
                 <div className="audio-preview-meta">
                   <span className="audio-preview-name">{audioFileName}</span>
-                  <span className="audio-preview-label">Arquivo enviado</span>
+                  <span className="audio-preview-label">Convertendo para WhatsApp...</span>
+                </div>
+                <div className="audio-converting-indicator">
+                  <span className="converting-spinner" />
+                  <span>Processando áudio...</span>
+                </div>
+              </div>
+            )}
+
+            {audioBase64 && !isConverting && (
+              <div className="audio-preview">
+                <div className="audio-preview-meta">
+                  <span className="audio-preview-name">{audioFileName}</span>
+                  <span className="audio-preview-label">
+                    {wasConverted ? 'Convertido para OGG/Opus' : 'OGG/Opus — pronto'}
+                  </span>
                 </div>
                 <audio controls src={audioBase64} className="audio-player" />
                 <button
@@ -587,6 +642,8 @@ export function BulkSendForm() {
                 </button>
               </div>
             )}
+
+            {conversionError && <span className="form-error">{conversionError}</span>}
             {csvError && <span className="form-error">{csvError}</span>}
           </div>
         )}
