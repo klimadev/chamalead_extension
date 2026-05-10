@@ -250,3 +250,11 @@ public/vendor/         # External scripts (wppconnect-wa.js, chamalead-page-brid
 3. Increment version in `package.json` AND `vite.config.ts` following the Semantic Versioning Guidelines (patch/minor/major)
 4. After version increment, run `npm run build` again to validate the new version is correct
 5. Commit and push with the incremented version
+
+## Git Policy
+
+**ALWAYS commit and push after every code change.** Do not wait for explicit instructions.
+
+- Write clear, user-facing commit messages
+- Push to the remote immediately after committing
+- Include the version number in the commit message

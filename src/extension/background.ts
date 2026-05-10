@@ -187,7 +187,7 @@ async function processNextNumber(state: StoredBulkSendState): Promise<void> {
     messageToSend = state.message
   }
 
-  if (!messageToSend || messageToSend.trim().length === 0) {
+  if (state.messageType !== 'audio' && (!messageToSend || messageToSend.trim().length === 0)) {
     const afterSkip = await getStoredState()
     if (!afterSkip || afterSkip.status !== 'sending') return
     afterSkip.currentIndex++
