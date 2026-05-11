@@ -299,24 +299,6 @@ export function BulkSendForm() {
     void startBulkSend(options)
   }
 
-
-  const handleResetAll = () => {
-    setNumbers('')
-    setMessage('')
-    setFallbackMessage('')
-    setAudioBase64('')
-    setAudioFileName('')
-    setMimeVariants([])
-    setSelectedVariant('original')
-    setIsLoading(false)
-    setCsvData(null)
-    setSelectedColumn('')
-    setPreviewNumbers([])
-    setRecipients([])
-    setCsvError('')
-    resetBulkSend()
-  }
-
   const invalidCount = useMemo(() =>
     previewNumbers.filter(p => !isValidPhone(p)).length,
     [previewNumbers]
@@ -681,7 +663,7 @@ export function BulkSendForm() {
               {isSending ? 'Enviando...' : 'Iniciar envio'}
             </Button>
           ) : (
-            <Button onClick={handleResetAll} className="button--soft">Novo envio</Button>
+            <Button onClick={resetBulkSend} className="button--soft">Novo envio</Button>
           )}
           {isSending && (
             <Button onClick={pauseBulkSend} className="button--secondary">
