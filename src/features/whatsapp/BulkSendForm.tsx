@@ -1,9 +1,9 @@
-import { useState, useRef, useMemo, useEffect } from 'react'
+import { useState, useRef, useMemo } from 'react'
 import { useBulkSend, formatPhoneNumber } from './useBulkSend'
 import { useWppStatus } from './useWppStatus'
 import type { BulkSendProgress } from './useBulkSend'
 import { extractPlaceholders, validatePlaceholders, type CsvRecipient } from './csv-messages'
-import { convertToOggOpus, AudioConversionError } from './audio-converter'
+import { convertToOggOpus, convertWithMediaRecorder, fileToRawDataUrl, AudioConversionError } from './audio-converter'
 
 import { Button } from '@/ui'
 
@@ -139,11 +139,14 @@ export function BulkSendForm() {
   const [fallbackMessage, setFallbackMessage] = useState('')
   const [audioBase64, setAudioBase64] = useState('')
   const [audioFileName, setAudioFileName] = useState('')
-  const [audioBase64Bytes, setAudioBase64Bytes] = useState(0)
-  const [audioBase64Mime, setAudioBase64Mime] = useState('')
-  const [audioBlobUrl, setAudioBlobUrl] = useState('')
-  const [isConverting, setIsConverting] = useState(false)
   const [conversionError, setConversionError] = useState('')
+  const [selectedAudioMethod, setSelectedAudioMethod] = useState('')
+  const [audioMethodStates, setAudioMethodStates] = useState<Record<string, { dataUrl: string; error: string; converting: boolean }>>({
+    raw: { dataUrl: '', error: '', converting: false },
+    ogg: { dataUrl: '', error: '', converting: false },
+    webm: { dataUrl: '', error: '', converting: false },
+  })
+  const isConverting = useMemo(() => Object.values(audioMethodStates).some((s) => s.converting), [audioMethodStates])
   const [csvData, setCsvData] = useState<CsvData | null>(null)
   const [selectedColumn, setSelectedColumn] = useState<string>('')
   const [csvError, setCsvError] = useState<string>('')
@@ -157,32 +160,6 @@ export function BulkSendForm() {
   const isPaused = progress.status === 'paused'
   const isCompleted = progress.status === 'completed'
   const canSend = wppStatus.isReady && wppStatus.isAuthenticated && !isSending && !isPaused
-
-  useEffect(() => {
-    if (!audioBase64) {
-      setAudioBase64Bytes(0)
-      setAudioBase64Mime('')
-      return
-    }
-
-    const base64Part = audioBase64.split(',')[1] || ''
-    setAudioBase64Bytes(Math.round((base64Part.length * 3) / 4))
-    const mimeMatch = audioBase64.match(/^data:([^;]+)/)
-    setAudioBase64Mime(mimeMatch ? mimeMatch[1] : 'unknown')
-
-    try {
-      const byteStr = atob(base64Part)
-      const bytes = new Uint8Array(byteStr.length)
-      for (let i = 0; i < byteStr.length; i++) {
-        bytes[i] = byteStr.charCodeAt(i)
-      }
-      const blob = new Blob([bytes], { type: 'audio/ogg' })
-      const url = URL.createObjectURL(blob)
-      setAudioBlobUrl(url)
-    } catch {
-      setAudioBlobUrl('')
-    }
-  }, [audioBase64])
 
   const updatePreview = (col: string, data?: CsvData) => {
     setSelectedColumn(col)
@@ -335,12 +312,13 @@ export function BulkSendForm() {
     setFallbackMessage('')
     setAudioBase64('')
     setAudioFileName('')
-    setAudioBase64Bytes(0)
-    setAudioBase64Mime('')
-    if (audioBlobUrl) URL.revokeObjectURL(audioBlobUrl)
-    setAudioBlobUrl('')
-    setIsConverting(false)
     setConversionError('')
+    setAudioMethodStates({
+      raw: { dataUrl: '', error: '', converting: false },
+      ogg: { dataUrl: '', error: '', converting: false },
+      webm: { dataUrl: '', error: '', converting: false },
+    })
+    setSelectedAudioMethod('')
     setCsvData(null)
     setSelectedColumn('')
     setPreviewNumbers([])
@@ -365,33 +343,63 @@ export function BulkSendForm() {
 
     setConversionError('')
     setCsvError('')
-    setIsConverting(true)
     setAudioFileName(file.name)
     setAudioBase64('')
+    setSelectedAudioMethod('')
 
-    try {
-      const conversion = await convertToOggOpus(file)
-      setAudioBase64(conversion.dataUrl)
-    } catch (error) {
-      const message = error instanceof AudioConversionError
-        ? error.message
-        : 'Erro ao converter áudio. Tente outro formato.'
-      setConversionError(message)
-      setAudioFileName('')
-    } finally {
-      setIsConverting(false)
-    }
+    setAudioMethodStates({
+      raw: { dataUrl: '', error: '', converting: true },
+      ogg: { dataUrl: '', error: '', converting: true },
+      webm: { dataUrl: '', error: '', converting: true },
+    })
+
+    // RAW (sem conversão)
+    fileToRawDataUrl(file)
+      .then((dataUrl) => {
+        setAudioMethodStates((prev) => ({ ...prev, raw: { dataUrl, error: '', converting: false } }))
+      })
+      .catch((err) => {
+        setAudioMethodStates((prev) => ({
+          ...prev,
+          raw: { dataUrl: '', error: err instanceof Error ? err.message : 'Erro RAW', converting: false },
+        }))
+      })
+
+    // OGG/Opus (WebCodecs)
+    convertToOggOpus(file)
+      .then((result) => {
+        setAudioMethodStates((prev) => ({ ...prev, ogg: { dataUrl: result.dataUrl, error: '', converting: false } }))
+      })
+      .catch((err) => {
+        setAudioMethodStates((prev) => ({
+          ...prev,
+          ogg: { dataUrl: '', error: err instanceof AudioConversionError ? err.message : 'Erro OGG', converting: false },
+        }))
+      })
+
+    // WebM/Opus (MediaRecorder)
+    convertWithMediaRecorder(file)
+      .then((result) => {
+        setAudioMethodStates((prev) => ({ ...prev, webm: { dataUrl: result.dataUrl, error: '', converting: false } }))
+      })
+      .catch((err) => {
+        setAudioMethodStates((prev) => ({
+          ...prev,
+          webm: { dataUrl: '', error: err instanceof AudioConversionError ? err.message : 'Erro WebM', converting: false },
+        }))
+      })
   }
 
   const handleAudioReset = () => {
     setAudioBase64('')
     setAudioFileName('')
-    setAudioBase64Bytes(0)
-    setAudioBase64Mime('')
-    if (audioBlobUrl) URL.revokeObjectURL(audioBlobUrl)
-    setAudioBlobUrl('')
-    setIsConverting(false)
     setConversionError('')
+    setAudioMethodStates({
+      raw: { dataUrl: '', error: '', converting: false },
+      ogg: { dataUrl: '', error: '', converting: false },
+      webm: { dataUrl: '', error: '', converting: false },
+    })
+    setSelectedAudioMethod('')
   }
 
   const handleSendAudio = () => {
@@ -578,7 +586,7 @@ export function BulkSendForm() {
 
         {activeSubTab === 'audio' && (
           <div className="form-group">
-            <label className="form-label">Áudio (PTT)</label>
+            <label className="form-label">Áudio (PTT) — Multi-método</label>
 
             {!audioBase64 && !isConverting && (
               <input
@@ -598,60 +606,61 @@ export function BulkSendForm() {
                 </div>
                 <div className="audio-converting-indicator">
                   <span className="converting-spinner" />
-                  <span>Convertendo para OGG/Opus...</span>
+                  <span>Convertendo áudio (3 métodos em paralelo)...</span>
                 </div>
               </div>
             )}
 
-            {audioBase64 && !isConverting && (
+            {Object.values(audioMethodStates).some((s) => s.dataUrl) && (
               <div className="audio-preview">
                 <div className="audio-preview-meta">
                   <span className="audio-preview-name">{audioFileName}</span>
-                  <span className="audio-preview-label">
-                    Diagnóstico de áudio — {audioBase64Bytes ? `${(audioBase64Bytes / 1024).toFixed(1)}KB` : ''} {audioBase64Mime || ''}
-                  </span>
+                  <span className="audio-preview-label">Selecione o formato para envio</span>
                 </div>
 
-                <div className="audio-tests-grid">
-                  <div className="audio-test-item">
-                    <span className="audio-test-label">1: Data URL direto</span>
-                    <audio controls src={audioBase64} className="audio-player" />
-                  </div>
-
-                  <div className="audio-test-item">
-                    <span className="audio-test-label">2: MIME forçado audio/ogg</span>
-                    <audio controls className="audio-player">
-                      <source src={audioBase64} type="audio/ogg" />
-                    </audio>
-                  </div>
-
-                  <div className="audio-test-item">
-                    <span className="audio-test-label">3: MIME forçado audio/ogg; codecs=opus</span>
-                    <audio controls className="audio-player">
-                      <source src={audioBase64} type="audio/ogg; codecs=opus" />
-                    </audio>
-                  </div>
-
-                  {audioBlobUrl && (
-                    <div className="audio-test-item">
-                      <span className="audio-test-label">4: Blob URL (audio/ogg)</span>
-                      <audio controls src={audioBlobUrl} className="audio-player" />
-                    </div>
-                  )}
-
-                  <div className="audio-test-item">
-                    <span className="audio-test-label">5: MIME audio/mpeg</span>
-                    <audio controls className="audio-player">
-                      <source src={audioBase64} type="audio/mpeg" />
-                    </audio>
-                  </div>
-
-                  <div className="audio-test-item">
-                    <span className="audio-test-label">6: Sem type (auto-detect)</span>
-                    <audio controls className="audio-player">
-                      <source src={audioBase64} />
-                    </audio>
-                  </div>
+                <div className="audio-methods-list">
+                  {[
+                    { id: 'raw', label: 'RAW (direto)' },
+                    { id: 'ogg', label: 'OGG/Opus (WebCodecs)' },
+                    { id: 'webm', label: 'WebM/Opus (MediaRecorder)' },
+                  ].map((method) => {
+                    const state = audioMethodStates[method.id]
+                    const isSelected = selectedAudioMethod === method.id
+                    return (
+                      <div key={method.id} className={`audio-method-card ${isSelected ? 'selected' : ''}`}>
+                        <div className="audio-method-header">
+                          <span className="audio-method-name">{method.label}</span>
+                          <span className={`audio-method-status ${state.error ? 'error' : state.dataUrl ? 'success' : 'pending'}`}>
+                            {state.converting
+                              ? 'Convertendo...'
+                              : state.error
+                                ? `✗ ${state.error}`
+                                : state.dataUrl
+                                  ? '✓ Pronto'
+                                  : '—'}
+                          </span>
+                        </div>
+                        {state.dataUrl && (
+                          <div className="audio-method-player">
+                            <audio controls src={state.dataUrl} className="audio-player" style={{ width: '100%' }} />
+                          </div>
+                        )}
+                        <div className="audio-method-actions">
+                          <button
+                            type="button"
+                            className={`audio-method-select ${isSelected ? 'selected' : ''}`}
+                            onClick={() => {
+                              setSelectedAudioMethod(method.id)
+                              setAudioBase64(state.dataUrl)
+                            }}
+                            disabled={!state.dataUrl || isSending}
+                          >
+                            {isSelected ? '✓ Selecionado para envio' : 'Selecionar para envio'}
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
 
                 <button
@@ -662,6 +671,20 @@ export function BulkSendForm() {
                 >
                   Remover
                 </button>
+              </div>
+            )}
+
+            {!isConverting &&
+              !Object.values(audioMethodStates).some((s) => s.dataUrl) &&
+              !Object.values(audioMethodStates).some((s) => s.error) && (
+                <div className="audio-preview">
+                  <span className="audio-preview-label">Nenhum áudio carregado</span>
+                </div>
+              )}
+
+            {!isConverting && Object.values(audioMethodStates).every((s) => !s.dataUrl && !s.converting) && (
+              <div className="audio-preview">
+                <span className="audio-preview-label">Nenhum método disponível</span>
               </div>
             )}
 
