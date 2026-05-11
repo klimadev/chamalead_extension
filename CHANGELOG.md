@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.63] - 2026-05-11
+### Changed
+- Replaced custom OGG muxer + WebCodecs AudioEncoder with opus-recorder (battle-tested WASM libopus 1.3.1 + OGG muxing)
+- Removed ~200 lines of dead code (custom CRC32, OGG page builder, WebCodecs encoder)
+
 ## [0.1.62] - 2026-05-11
 ### Fixed
 - OGG/Opus pre-skip in buildOpusHead to fix audio playback and PTT send

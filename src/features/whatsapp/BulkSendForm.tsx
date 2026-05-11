@@ -326,7 +326,7 @@ export function BulkSendForm() {
 
     setAudioMethods([
       { id: 'raw', label: 'RAW (direto)', dataUrl: '', error: '', converting: true },
-      { id: 'ogg', label: 'OGG/Opus (WebCodecs)', dataUrl: '', error: '', converting: true },
+      { id: 'ogg', label: 'OGG/Opus', dataUrl: '', error: '', converting: true },
       { id: 'webm', label: 'WebM/Opus (MediaRecorder)', dataUrl: '', error: '', converting: true },
       { id: 'auto', label: 'Auto (fallback)', dataUrl: '', error: '', converting: true },
     ])
@@ -374,7 +374,7 @@ export function BulkSendForm() {
     setSelectedAudioMethod('')
     setAudioMethods([
       { id: 'raw', label: 'RAW (direto)', dataUrl: '', error: '', converting: false },
-      { id: 'ogg', label: 'OGG/Opus (WebCodecs)', dataUrl: '', error: '', converting: false },
+      { id: 'ogg', label: 'OGG/Opus', dataUrl: '', error: '', converting: false },
       { id: 'webm', label: 'WebM/Opus (MediaRecorder)', dataUrl: '', error: '', converting: false },
       { id: 'auto', label: 'Auto (fallback)', dataUrl: '', error: '', converting: false },
     ])
