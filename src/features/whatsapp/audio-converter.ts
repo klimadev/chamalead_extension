@@ -437,3 +437,44 @@ export async function convertWithMediaRecorder(sourceBlob: Blob): Promise<Conver
   const dataUrl = await blobToDataUrl(webmBlob)
   return { blob: webmBlob, dataUrl, wasConverted: true }
 }
+
+async function validateAudioBlob(blob: Blob): Promise<boolean> {
+  try {
+    const arrayBuffer = await blob.arrayBuffer()
+    const audioCtx = new AudioContext()
+    await audioCtx.decodeAudioData(arrayBuffer.slice(0))
+    void audioCtx.close()
+    return true
+  } catch {
+    return false
+  }
+}
+
+export async function convertAudioWithFallback(sourceBlob: Blob): Promise<ConversionResult> {
+  // Fast path: already OGG/Opus
+  if (isAlreadyOggOpus(sourceBlob)) {
+    const dataUrl = await blobToDataUrl(sourceBlob)
+    return { blob: sourceBlob, dataUrl, wasConverted: false }
+  }
+
+  // Attempt 1: OGG/Opus via WebCodecs AudioEncoder (fast)
+  try {
+    const result = await convertToOggOpus(sourceBlob)
+    if (await validateAudioBlob(result.blob)) {
+      return result
+    }
+  } catch {
+    // fall through
+  }
+
+  // Attempt 2: WebM/Opus via MediaRecorder (slow but reliable)
+  try {
+    return await convertWithMediaRecorder(sourceBlob)
+  } catch {
+    // fall through
+  }
+
+  // Attempt 3: RAW (no conversion)
+  const dataUrl = await blobToDataUrl(sourceBlob)
+  return { blob: sourceBlob, dataUrl, wasConverted: false }
+}
