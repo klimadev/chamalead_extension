@@ -393,7 +393,7 @@
       // Convert data URL to File via fetch(blob) to bypass WA-JS regex payload limit
       const response = await fetch(audioBase64)
       const blob = await response.blob()
-      const mimeType = blob.type || 'audio/ogg'
+      const mimeType = 'audio/ogg; codecs=opus'
       const ext = mimeType.split('/')[1] || 'ogg'
       const file = new File([blob], `audio.${ext}`, { type: mimeType })
 

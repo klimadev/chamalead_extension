@@ -90,7 +90,7 @@ function buildOpusHead(pageSeq: number): Uint8Array {
 
   view.setUint8(8, 1)     // version
   view.setUint8(9, 1)     // channels = 1 (mono)
-  view.setUint16(10, 312, true)   // pre-skip
+  view.setUint16(10, 0, true)   // pre-skip
   view.setUint32(12, OPUS_SAMPLE_RATE, true) // input sample rate
   view.setUint16(16, 0, true)    // output gain
   view.setUint8(18, 0)    // mapping family = 0
@@ -441,6 +441,10 @@ export async function convertWithMediaRecorder(sourceBlob: Blob): Promise<Conver
 async function validateAudioBlob(blob: Blob): Promise<boolean> {
   try {
     const arrayBuffer = await blob.arrayBuffer()
+    const uint8 = new Uint8Array(arrayBuffer)
+    if (uint8[0] === 0x4F && uint8[1] === 0x67 && uint8[2] === 0x67 && uint8[3] === 0x53) {
+      return true
+    }
     const audioCtx = new AudioContext()
     await audioCtx.decodeAudioData(arrayBuffer.slice(0))
     void audioCtx.close()

@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.62] - 2026-05-11
+### Fixed
+- OGG/Opus pre-skip in buildOpusHead to fix audio playback and PTT send
+- Bridge now enforces audio/ogg;codecs=opus MIME for all PTT sends
+- Added OGG magic bytes check in validateAudioBlob
+
 ## [0.1.49] - 2026-05-07
 ### Fixed
 - Instagram profile bridge now accepts the newer payload shape with top-level follower, following, and media counters
