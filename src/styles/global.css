@@ -1100,6 +1100,47 @@ body {
   height: 32px;
 }
 
+.audio-tests-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.audio-test-item {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+
+.audio-test-label {
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.audio-reset-btn {
+  margin-top: 10px;
+  padding: 6px 14px;
+  font-size: 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--card);
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.audio-reset-btn:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
 .audio-converting-indicator {
   display: flex;
   align-items: center;

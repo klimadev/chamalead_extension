@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from 'react'
+import { useState, useRef, useMemo, useEffect } from 'react'
 import { useBulkSend, formatPhoneNumber } from './useBulkSend'
 import { useWppStatus } from './useWppStatus'
 import type { BulkSendProgress } from './useBulkSend'
@@ -139,6 +139,9 @@ export function BulkSendForm() {
   const [fallbackMessage, setFallbackMessage] = useState('')
   const [audioBase64, setAudioBase64] = useState('')
   const [audioFileName, setAudioFileName] = useState('')
+  const [audioBase64Bytes, setAudioBase64Bytes] = useState(0)
+  const [audioBase64Mime, setAudioBase64Mime] = useState('')
+  const [audioBlobUrl, setAudioBlobUrl] = useState('')
   const [isConverting, setIsConverting] = useState(false)
   const [conversionError, setConversionError] = useState('')
   const [csvData, setCsvData] = useState<CsvData | null>(null)
@@ -154,6 +157,32 @@ export function BulkSendForm() {
   const isPaused = progress.status === 'paused'
   const isCompleted = progress.status === 'completed'
   const canSend = wppStatus.isReady && wppStatus.isAuthenticated && !isSending && !isPaused
+
+  useEffect(() => {
+    if (!audioBase64) {
+      setAudioBase64Bytes(0)
+      setAudioBase64Mime('')
+      return
+    }
+
+    const base64Part = audioBase64.split(',')[1] || ''
+    setAudioBase64Bytes(Math.round((base64Part.length * 3) / 4))
+    const mimeMatch = audioBase64.match(/^data:([^;]+)/)
+    setAudioBase64Mime(mimeMatch ? mimeMatch[1] : 'unknown')
+
+    try {
+      const byteStr = atob(base64Part)
+      const bytes = new Uint8Array(byteStr.length)
+      for (let i = 0; i < byteStr.length; i++) {
+        bytes[i] = byteStr.charCodeAt(i)
+      }
+      const blob = new Blob([bytes], { type: 'audio/ogg' })
+      const url = URL.createObjectURL(blob)
+      setAudioBlobUrl(url)
+    } catch {
+      setAudioBlobUrl('')
+    }
+  }, [audioBase64])
 
   const updatePreview = (col: string, data?: CsvData) => {
     setSelectedColumn(col)
@@ -306,6 +335,10 @@ export function BulkSendForm() {
     setFallbackMessage('')
     setAudioBase64('')
     setAudioFileName('')
+    setAudioBase64Bytes(0)
+    setAudioBase64Mime('')
+    if (audioBlobUrl) URL.revokeObjectURL(audioBlobUrl)
+    setAudioBlobUrl('')
     setIsConverting(false)
     setConversionError('')
     setCsvData(null)
@@ -353,6 +386,10 @@ export function BulkSendForm() {
   const handleAudioReset = () => {
     setAudioBase64('')
     setAudioFileName('')
+    setAudioBase64Bytes(0)
+    setAudioBase64Mime('')
+    if (audioBlobUrl) URL.revokeObjectURL(audioBlobUrl)
+    setAudioBlobUrl('')
     setIsConverting(false)
     setConversionError('')
   }
@@ -571,10 +608,52 @@ export function BulkSendForm() {
                 <div className="audio-preview-meta">
                   <span className="audio-preview-name">{audioFileName}</span>
                   <span className="audio-preview-label">
-                    Pronto para envio
+                    Diagnóstico de áudio — {audioBase64Bytes ? `${(audioBase64Bytes / 1024).toFixed(1)}KB` : ''} {audioBase64Mime || ''}
                   </span>
                 </div>
-                <audio controls src={audioBase64} className="audio-player" />
+
+                <div className="audio-tests-grid">
+                  <div className="audio-test-item">
+                    <span className="audio-test-label">1: Data URL direto</span>
+                    <audio controls src={audioBase64} className="audio-player" />
+                  </div>
+
+                  <div className="audio-test-item">
+                    <span className="audio-test-label">2: MIME forçado audio/ogg</span>
+                    <audio controls className="audio-player">
+                      <source src={audioBase64} type="audio/ogg" />
+                    </audio>
+                  </div>
+
+                  <div className="audio-test-item">
+                    <span className="audio-test-label">3: MIME forçado audio/ogg; codecs=opus</span>
+                    <audio controls className="audio-player">
+                      <source src={audioBase64} type="audio/ogg; codecs=opus" />
+                    </audio>
+                  </div>
+
+                  {audioBlobUrl && (
+                    <div className="audio-test-item">
+                      <span className="audio-test-label">4: Blob URL (audio/ogg)</span>
+                      <audio controls src={audioBlobUrl} className="audio-player" />
+                    </div>
+                  )}
+
+                  <div className="audio-test-item">
+                    <span className="audio-test-label">5: MIME audio/mpeg</span>
+                    <audio controls className="audio-player">
+                      <source src={audioBase64} type="audio/mpeg" />
+                    </audio>
+                  </div>
+
+                  <div className="audio-test-item">
+                    <span className="audio-test-label">6: Sem type (auto-detect)</span>
+                    <audio controls className="audio-player">
+                      <source src={audioBase64} />
+                    </audio>
+                  </div>
+                </div>
+
                 <button
                   type="button"
                   className="audio-reset-btn"
