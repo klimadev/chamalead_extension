@@ -3,7 +3,6 @@ import { useBulkSend, formatPhoneNumber } from './useBulkSend'
 import { useWppStatus } from './useWppStatus'
 import type { BulkSendProgress } from './useBulkSend'
 import { extractPlaceholders, validatePlaceholders, type CsvRecipient } from './csv-messages'
-import { convertToOggOpus, convertWithMediaRecorder, fileToRawDataUrl, AudioConversionError } from './audio-converter'
 
 import { Button } from '@/ui'
 
@@ -139,14 +138,9 @@ export function BulkSendForm() {
   const [fallbackMessage, setFallbackMessage] = useState('')
   const [audioBase64, setAudioBase64] = useState('')
   const [audioFileName, setAudioFileName] = useState('')
-  const [conversionError, setConversionError] = useState('')
-  const [selectedAudioMethod, setSelectedAudioMethod] = useState('')
-  const [audioMethodStates, setAudioMethodStates] = useState<Record<string, { dataUrl: string; error: string; converting: boolean }>>({
-    raw: { dataUrl: '', error: '', converting: false },
-    ogg: { dataUrl: '', error: '', converting: false },
-    webm: { dataUrl: '', error: '', converting: false },
-  })
-  const isConverting = useMemo(() => Object.values(audioMethodStates).some((s) => s.converting), [audioMethodStates])
+  const [selectedVariant, setSelectedVariant] = useState('original')
+  const [mimeVariants, setMimeVariants] = useState<{ id: string; label: string; dataUrl: string }[]>([])
+  const [isLoading, setIsLoading] = useState(false)
   const [csvData, setCsvData] = useState<CsvData | null>(null)
   const [selectedColumn, setSelectedColumn] = useState<string>('')
   const [csvError, setCsvError] = useState<string>('')
@@ -312,13 +306,9 @@ export function BulkSendForm() {
     setFallbackMessage('')
     setAudioBase64('')
     setAudioFileName('')
-    setConversionError('')
-    setAudioMethodStates({
-      raw: { dataUrl: '', error: '', converting: false },
-      ogg: { dataUrl: '', error: '', converting: false },
-      webm: { dataUrl: '', error: '', converting: false },
-    })
-    setSelectedAudioMethod('')
+    setMimeVariants([])
+    setSelectedVariant('original')
+    setIsLoading(false)
     setCsvData(null)
     setSelectedColumn('')
     setPreviewNumbers([])
@@ -341,65 +331,55 @@ export function BulkSendForm() {
       return
     }
 
-    setConversionError('')
     setCsvError('')
     setAudioFileName(file.name)
     setAudioBase64('')
-    setSelectedAudioMethod('')
+    setMimeVariants([])
+    setIsLoading(true)
 
-    setAudioMethodStates({
-      raw: { dataUrl: '', error: '', converting: true },
-      ogg: { dataUrl: '', error: '', converting: true },
-      webm: { dataUrl: '', error: '', converting: true },
-    })
+    const reader = new FileReader()
 
-    // RAW (sem conversão)
-    fileToRawDataUrl(file)
-      .then((dataUrl) => {
-        setAudioMethodStates((prev) => ({ ...prev, raw: { dataUrl, error: '', converting: false } }))
-      })
-      .catch((err) => {
-        setAudioMethodStates((prev) => ({
-          ...prev,
-          raw: { dataUrl: '', error: err instanceof Error ? err.message : 'Erro RAW', converting: false },
-        }))
-      })
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result
+      if (!dataUrl || typeof dataUrl !== 'string') {
+        setAudioFileName('')
+        setIsLoading(false)
+        setCsvError('Erro ao ler arquivo de áudio')
+        return
+      }
 
-    // OGG/Opus (WebCodecs)
-    convertToOggOpus(file)
-      .then((result) => {
-        setAudioMethodStates((prev) => ({ ...prev, ogg: { dataUrl: result.dataUrl, error: '', converting: false } }))
-      })
-      .catch((err) => {
-        setAudioMethodStates((prev) => ({
-          ...prev,
-          ogg: { dataUrl: '', error: err instanceof AudioConversionError ? err.message : 'Erro OGG', converting: false },
-        }))
-      })
+      const base64Part = dataUrl.split(',')[1] || ''
+      const originalMime = dataUrl.match(/^data:([^;]+)/)?.[1] || 'audio/mpeg'
 
-    // WebM/Opus (MediaRecorder)
-    convertWithMediaRecorder(file)
-      .then((result) => {
-        setAudioMethodStates((prev) => ({ ...prev, webm: { dataUrl: result.dataUrl, error: '', converting: false } }))
-      })
-      .catch((err) => {
-        setAudioMethodStates((prev) => ({
-          ...prev,
-          webm: { dataUrl: '', error: err instanceof AudioConversionError ? err.message : 'Erro WebM', converting: false },
-        }))
-      })
+      const variants = [
+        { id: 'original', label: `Original (${originalMime})`, dataUrl },
+        { id: 'ogg', label: 'OGG (audio/ogg)', dataUrl: `data:audio/ogg;base64,${base64Part}` },
+        { id: 'ogg-opus', label: 'OGG+Opus (audio/ogg;codecs=opus)', dataUrl: `data:audio/ogg;codecs=opus;base64,${base64Part}` },
+        { id: 'mp3', label: 'MP3 (audio/mpeg)', dataUrl: `data:audio/mpeg;base64,${base64Part}` },
+        { id: 'wav', label: 'WAV (audio/wav)', dataUrl: `data:audio/wav;base64,${base64Part}` },
+      ]
+
+      setMimeVariants(variants)
+      setAudioBase64(dataUrl)
+      setSelectedVariant('original')
+      setIsLoading(false)
+    }
+
+    reader.onerror = () => {
+      setAudioFileName('')
+      setIsLoading(false)
+      setCsvError('Erro ao ler arquivo de áudio')
+    }
+
+    reader.readAsDataURL(file)
   }
 
   const handleAudioReset = () => {
     setAudioBase64('')
     setAudioFileName('')
-    setConversionError('')
-    setAudioMethodStates({
-      raw: { dataUrl: '', error: '', converting: false },
-      ogg: { dataUrl: '', error: '', converting: false },
-      webm: { dataUrl: '', error: '', converting: false },
-    })
-    setSelectedAudioMethod('')
+    setMimeVariants([])
+    setSelectedVariant('original')
+    setIsLoading(false)
   }
 
   const handleSendAudio = () => {
@@ -586,9 +566,9 @@ export function BulkSendForm() {
 
         {activeSubTab === 'audio' && (
           <div className="form-group">
-            <label className="form-label">Áudio (PTT) — Multi-método</label>
+            <label className="form-label">Áudio (PTT) — RAW + Variantes</label>
 
-            {!audioBase64 && !isConverting && (
+            {!audioBase64 && !isLoading && (
               <input
                 type="file"
                 accept="audio/*"
@@ -598,64 +578,45 @@ export function BulkSendForm() {
               />
             )}
 
-            {isConverting && (
+            {isLoading && (
               <div className="audio-preview">
                 <div className="audio-preview-meta">
                   <span className="audio-preview-name">{audioFileName}</span>
-                  <span className="audio-preview-label">Convertendo...</span>
-                </div>
-                <div className="audio-converting-indicator">
-                  <span className="converting-spinner" />
-                  <span>Convertendo áudio (3 métodos em paralelo)...</span>
+                  <span className="audio-preview-label">Lendo arquivo...</span>
                 </div>
               </div>
             )}
 
-            {Object.values(audioMethodStates).some((s) => s.dataUrl) && (
+            {mimeVariants.length > 0 && (
               <div className="audio-preview">
                 <div className="audio-preview-meta">
                   <span className="audio-preview-name">{audioFileName}</span>
-                  <span className="audio-preview-label">Selecione o formato para envio</span>
+                  <span className="audio-preview-label">Escolha o MIME para envio</span>
                 </div>
 
                 <div className="audio-methods-list">
-                  {[
-                    { id: 'raw', label: 'RAW (direto)' },
-                    { id: 'ogg', label: 'OGG/Opus (WebCodecs)' },
-                    { id: 'webm', label: 'WebM/Opus (MediaRecorder)' },
-                  ].map((method) => {
-                    const state = audioMethodStates[method.id]
-                    const isSelected = selectedAudioMethod === method.id
+                  {mimeVariants.map((v) => {
+                    const isSelected = selectedVariant === v.id
                     return (
-                      <div key={method.id} className={`audio-method-card ${isSelected ? 'selected' : ''}`}>
+                      <div key={v.id} className={`audio-method-card ${isSelected ? 'selected' : ''}`}>
                         <div className="audio-method-header">
-                          <span className="audio-method-name">{method.label}</span>
-                          <span className={`audio-method-status ${state.error ? 'error' : state.dataUrl ? 'success' : 'pending'}`}>
-                            {state.converting
-                              ? 'Convertendo...'
-                              : state.error
-                                ? `✗ ${state.error}`
-                                : state.dataUrl
-                                  ? '✓ Pronto'
-                                  : '—'}
-                          </span>
+                          <span className="audio-method-name">{v.label}</span>
+                          {isSelected && <span className="audio-method-status success">✓ Ativo</span>}
                         </div>
-                        {state.dataUrl && (
-                          <div className="audio-method-player">
-                            <audio controls src={state.dataUrl} className="audio-player" style={{ width: '100%' }} />
-                          </div>
-                        )}
+                        <div className="audio-method-player">
+                          <audio controls src={v.dataUrl} className="audio-player" style={{ width: '100%' }} />
+                        </div>
                         <div className="audio-method-actions">
                           <button
                             type="button"
                             className={`audio-method-select ${isSelected ? 'selected' : ''}`}
                             onClick={() => {
-                              setSelectedAudioMethod(method.id)
-                              setAudioBase64(state.dataUrl)
+                              setSelectedVariant(v.id)
+                              setAudioBase64(v.dataUrl)
                             }}
-                            disabled={!state.dataUrl || isSending}
+                            disabled={isSending}
                           >
-                            {isSelected ? '✓ Selecionado para envio' : 'Selecionar para envio'}
+                            {isSelected ? '✓ Selecionado' : 'Usar este MIME'}
                           </button>
                         </div>
                       </div>
@@ -674,21 +635,6 @@ export function BulkSendForm() {
               </div>
             )}
 
-            {!isConverting &&
-              !Object.values(audioMethodStates).some((s) => s.dataUrl) &&
-              !Object.values(audioMethodStates).some((s) => s.error) && (
-                <div className="audio-preview">
-                  <span className="audio-preview-label">Nenhum áudio carregado</span>
-                </div>
-              )}
-
-            {!isConverting && Object.values(audioMethodStates).every((s) => !s.dataUrl && !s.converting) && (
-              <div className="audio-preview">
-                <span className="audio-preview-label">Nenhum método disponível</span>
-              </div>
-            )}
-
-            {conversionError && <span className="form-error">{conversionError}</span>}
             {csvError && <span className="form-error">{csvError}</span>}
           </div>
         )}

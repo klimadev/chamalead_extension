@@ -382,10 +382,6 @@
       return { success: false, error: 'WhatsApp not ready or not authenticated' }
     }
 
-    // Run diagnostics first
-    const diag = await testAudioDecoding(audioBase64)
-    const passedMethods = diag.methods.filter(m => m.success)
-
     try {
       const chatId = `${phoneNumber}@c.us`
       const sendMethod = wpp?.chat?.sendFileMessage
@@ -397,13 +393,15 @@
       // Convert data URL to File via fetch(blob) to bypass WA-JS regex payload limit
       const response = await fetch(audioBase64)
       const blob = await response.blob()
-      const file = new File([blob], 'audio.ogg', { type: blob.type || 'audio/ogg' })
+      const mimeType = blob.type || 'audio/ogg'
+      const ext = mimeType.split('/')[1] || 'ogg'
+      const file = new File([blob], `audio.${ext}`, { type: mimeType })
 
       const result = await sendMethod.call(wpp.chat, chatId, file, {
         type: 'audio',
         isPtt: true,
       })
-      console.log('[ChamaLead:bridge] Audio sent to', phoneNumber, result)
+      console.log('[ChamaLead:bridge] Audio sent to', phoneNumber, 'MIME:', mimeType, result)
       return { success: true }
     } catch (error) {
       console.log('[ChamaLead:bridge] Failed to send audio', error)
