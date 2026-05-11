@@ -143,10 +143,14 @@
         return { success: false, error: 'Send method not available' }
       }
 
-      const result = await sendMethod.call(wpp.chat, chatId, audioBase64, {
+      // Convert data URL to File via fetch(blob) to bypass WA-JS regex payload limit
+      const response = await fetch(audioBase64)
+      const blob = await response.blob()
+      const file = new File([blob], 'audio.ogg', { type: blob.type || 'audio/ogg' })
+
+      const result = await sendMethod.call(wpp.chat, chatId, file, {
         type: 'audio',
         isPtt: true,
-        mimetype: 'audio/ogg; codecs=opus',
       })
       console.log('[ChamaLead:bridge] Audio sent to', phoneNumber, result)
       return { success: true }

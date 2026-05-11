@@ -332,7 +332,7 @@ export async function convertToOggOpus(sourceBlob: Blob): Promise<ConversionResu
   const oggBytes = buildOggFile(opusPackets, frameSamples)
 
   // Phase 6: Create blob and data URL
-  const oggBlob = new Blob([new Uint8Array(oggBytes)], { type: 'audio/ogg; codecs=opus' })
+  const oggBlob = new Blob([new Uint8Array(oggBytes)], { type: 'audio/ogg' })
   const dataUrl = await blobToDataUrl(oggBlob)
 
   return { blob: oggBlob, dataUrl, wasConverted: true }
