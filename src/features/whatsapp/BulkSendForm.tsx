@@ -139,7 +139,6 @@ export function BulkSendForm() {
   const [fallbackMessage, setFallbackMessage] = useState('')
   const [audioBase64, setAudioBase64] = useState('')
   const [audioFileName, setAudioFileName] = useState('')
-  const [selectedAudioMethod, setSelectedAudioMethod] = useState('')
   const [audioMethods, setAudioMethods] = useState<{ id: string; label: string; dataUrl: string; error: string; converting: boolean }[]>([
     { id: 'raw', label: 'RAW (direto)', dataUrl: '', error: '', converting: false },
     { id: 'ogg', label: 'OGG/Opus (WebCodecs)', dataUrl: '', error: '', converting: false },
@@ -160,6 +159,7 @@ export function BulkSendForm() {
   const isPaused = progress.status === 'paused'
   const isCompleted = progress.status === 'completed'
   const canSend = wppStatus.isReady && wppStatus.isAuthenticated && !isSending && !isPaused
+  const [showLogs, setShowLogs] = useState(false)
 
   const updatePreview = (col: string, data?: CsvData) => {
     setSelectedColumn(col)
@@ -315,14 +315,13 @@ export function BulkSendForm() {
     if (!file) return
 
     if (file.size > MAX_FILE_SIZE) {
-      setCsvError('Arquivo de áudio muito grande. Tamanho máximo: 5MB')
+      setCsvError('Arquivo de audio muito grande. Tamanho maximo: 5MB')
       return
     }
 
     setCsvError('')
     setAudioFileName(file.name)
     setAudioBase64('')
-    setSelectedAudioMethod('')
 
     setAudioMethods([
       { id: 'raw', label: 'RAW (direto)', dataUrl: '', error: '', converting: true },
@@ -331,47 +330,72 @@ export function BulkSendForm() {
       { id: 'auto', label: 'Auto (fallback)', dataUrl: '', error: '', converting: true },
     ])
 
+    const tryAutoSelect = (methods: typeof audioMethods) => {
+      if (audioBase64) return
+      const auto = methods.find((m) => m.id === 'auto' && m.dataUrl)
+      const ogg = methods.find((m) => m.id === 'ogg' && m.dataUrl)
+      const webm = methods.find((m) => m.id === 'webm' && m.dataUrl)
+      const raw = methods.find((m) => m.id === 'raw' && m.dataUrl)
+      const best = auto || ogg || webm || raw
+      if (best) {
+        setAudioBase64(best.dataUrl)
+      }
+      const allDone = methods.every((m) => !m.converting)
+      if (allDone && !best) {
+        setCsvError('Nao foi possivel processar o audio. Tente outro arquivo.')
+      }
+    }
+
+    const updateMethod = (id: string, dataUrl?: string, error?: string) => {
+      setAudioMethods((prev) => {
+        const next = prev.map((m) =>
+          m.id === id ? { ...m, dataUrl: dataUrl ?? '', error: error ?? '', converting: false } : m,
+        )
+        tryAutoSelect(next)
+        return next
+      })
+    }
+
     // RAW (sem conversão)
     fileToRawDataUrl(file)
       .then((dataUrl) => {
-        setAudioMethods((prev) => prev.map((m) => (m.id === 'raw' ? { ...m, dataUrl, error: '', converting: false } : m)))
+        updateMethod('raw', dataUrl)
       })
       .catch((err) => {
-        setAudioMethods((prev) => prev.map((m) => (m.id === 'raw' ? { ...m, dataUrl: '', error: err instanceof Error ? err.message : 'Erro RAW', converting: false } : m)))
+        updateMethod('raw', undefined, err instanceof Error ? err.message : 'Erro RAW')
       })
 
     // OGG/Opus (WebCodecs)
     convertToOggOpus(file)
       .then((result) => {
-        setAudioMethods((prev) => prev.map((m) => (m.id === 'ogg' ? { ...m, dataUrl: result.dataUrl, error: '', converting: false } : m)))
+        updateMethod('ogg', result.dataUrl)
       })
       .catch((err) => {
-        setAudioMethods((prev) => prev.map((m) => (m.id === 'ogg' ? { ...m, dataUrl: '', error: err instanceof Error ? err.message : 'Erro OGG', converting: false } : m)))
+        updateMethod('ogg', undefined, err instanceof Error ? err.message : 'Erro OGG')
       })
 
     // WebM/Opus (MediaRecorder)
     convertWithMediaRecorder(file)
       .then((result) => {
-        setAudioMethods((prev) => prev.map((m) => (m.id === 'webm' ? { ...m, dataUrl: result.dataUrl, error: '', converting: false } : m)))
+        updateMethod('webm', result.dataUrl)
       })
       .catch((err) => {
-        setAudioMethods((prev) => prev.map((m) => (m.id === 'webm' ? { ...m, dataUrl: '', error: err instanceof Error ? err.message : 'Erro WebM', converting: false } : m)))
+        updateMethod('webm', undefined, err instanceof Error ? err.message : 'Erro WebM')
       })
 
     // Auto (fallback pipeline)
     convertAudioWithFallback(file)
       .then((result) => {
-        setAudioMethods((prev) => prev.map((m) => (m.id === 'auto' ? { ...m, dataUrl: result.dataUrl, error: '', converting: false } : m)))
+        updateMethod('auto', result.dataUrl)
       })
       .catch((err) => {
-        setAudioMethods((prev) => prev.map((m) => (m.id === 'auto' ? { ...m, dataUrl: '', error: err instanceof Error ? err.message : 'Erro Auto', converting: false } : m)))
+        updateMethod('auto', undefined, err instanceof Error ? err.message : 'Erro Auto')
       })
   }
 
   const handleAudioReset = () => {
     setAudioBase64('')
     setAudioFileName('')
-    setSelectedAudioMethod('')
     setAudioMethods([
       { id: 'raw', label: 'RAW (direto)', dataUrl: '', error: '', converting: false },
       { id: 'ogg', label: 'OGG/Opus', dataUrl: '', error: '', converting: false },
@@ -393,336 +417,317 @@ export function BulkSendForm() {
 
   return (
     <div className="bulk-send-form">
-      <section className="campaign-section campaign-type-section" aria-label="Tipo de campanha">
-        <div className="section-header">
-          <div>
-            <p className="section-kicker">Preparação</p>
-            <h3 className="section-title">Tipo de campanha</h3>
+      {isCompleted ? (
+        <section className="campaign-section" aria-label="Campanha concluida">
+          <div className="section-header">
+            <div>
+              <p className="section-kicker">Concluido</p>
+              <h3 className="section-title">Campanha finalizada</h3>
+            </div>
+            <div className="status-chip status-chip--success">Concluida</div>
           </div>
-          <div className="status-chip status-chip--neutral">{activeModeLabel}</div>
-        </div>
-        <div className="bulk-sub-tabs" role="tablist" aria-label="Tipo de envio">
-          <button
-            type="button"
-            className={`sub-tab-btn ${activeSubTab === 'text' ? 'active' : ''}`}
-            onClick={() => handleTabChange('text')}
-            disabled={isSending}
-            aria-pressed={activeSubTab === 'text'}
-          >
-            Texto Massivo
-          </button>
-          <button
-            type="button"
-            className={`sub-tab-btn ${activeSubTab === 'audio' ? 'active' : ''}`}
-            onClick={() => handleTabChange('audio')}
-            disabled={isSending}
-            aria-pressed={activeSubTab === 'audio'}
-          >
-            Áudio Massivo
-          </button>
-        </div>
-      </section>
-
-      <section className="campaign-section" aria-label="Fonte de contatos">
-        <div className="section-header">
-          <div>
-            <p className="section-kicker">Contato</p>
-            <h3 className="section-title">Fonte de contatos</h3>
+          <div className="bulk-info">
+            <p>Enviados: {progress.sent} | Falhas: {progress.failed}</p>
           </div>
-          <div className="status-chip status-chip--neutral">
-            {contactCount ? `${contactCount} números` : 'Nenhum número'}
+          <div className="form-actions">
+            <Button onClick={() => { setShowLogs(!showLogs) }} className="button--secondary">
+              {showLogs ? 'Esconder logs' : 'Ver logs'}
+            </Button>
+            <Button onClick={resetBulkSend}>Nova campanha</Button>
           </div>
-        </div>
-
-        <div className="form-group">
-          <label className="form-label">Importar CSV (opcional)</label>
-          <input
-            type="file"
-            accept=".csv"
-            onChange={handleFileUpload}
-            disabled={isSending}
-            className="form-file-input"
-          />
-          {csvError && <span className="form-error">{csvError}</span>}
-          {csvData && (
-            <div className="csv-selector">
-              <div className="csv-selector-meta">
-                <span className="status-chip status-chip--neutral">{csvData.rows.length} registros</span>
-                <span className="status-chip status-chip--neutral">{csvData.headers.length} colunas</span>
+        </section>
+      ) : (
+        <>
+          {isSending || isPaused ? (
+            <section className="campaign-section" aria-label="Resumo da campanha">
+              <div className="section-header">
+                <div>
+                  <p className="section-kicker">{isPaused ? 'Pausada' : 'Enviando'}</p>
+                  <h3 className="section-title">Campanha em andamento</h3>
+                </div>
+                <div className={`status-chip ${isPaused ? 'status-chip--warning' : 'status-chip--neutral'}`}>
+                  {isPaused ? 'Pausada' : `${contactCount} numeros`}
+                </div>
               </div>
-              <label className="form-label">Coluna com telefones</label>
-              <div className="csv-selector-row">
-                <select
-                  value={selectedColumn}
-                  onChange={(e) => updatePreview(e.target.value, csvData)}
-                  className="form-select"
-                  disabled={isSending}
-                >
-                  {csvData.headers.map((header) => (
-                    <option key={header} value={header}>{header}</option>
-                  ))}
-                </select>
-                <Button onClick={handleImportColumn} disabled={isSending || previewNumbers.length === 0}>
-                  Confirmar importação
-                </Button>
-              </div>
-              <span className="form-hint">{csvData.rows.length} registro(s) encontrado(s)</span>
-              {previewNumbers.length > 0 && (
-                <div className="csv-preview">
-                  <div className="preview-header">
-                    Prévia ({previewNumbers.length} números formatados)
+              <p className="muted">{activeModeLabel} — {contactCount} numeros</p>
+            </section>
+          ) : (
+            <>
+              <section className="campaign-section campaign-type-section" aria-label="Tipo de campanha">
+                <div className="section-header">
+                  <div>
+                    <p className="section-kicker">Preparacao</p>
+                    <h3 className="section-title">Tipo de campanha</h3>
                   </div>
-                  <div className="preview-content">
-                    {previewNumbers.slice(0, 5).map((phone, idx) => (
-                      <div key={idx} className={`preview-number ${!isValidPhone(phone) ? 'invalid' : 'valid'}`}>
-                        <span className="preview-number-value">{phone}</span>
-                        {!isValidPhone(phone) && <span className="preview-number-flag">Inválido</span>}
+                  <div className="status-chip status-chip--neutral">{activeModeLabel}</div>
+                </div>
+                <div className="bulk-sub-tabs" role="tablist" aria-label="Tipo de envio">
+                  <button
+                    type="button"
+                    className={`sub-tab-btn ${activeSubTab === 'text' ? 'active' : ''}`}
+                    onClick={() => handleTabChange('text')}
+                    disabled={isSending}
+                    aria-pressed={activeSubTab === 'text'}
+                  >
+                    Texto Massivo
+                  </button>
+                  <button
+                    type="button"
+                    className={`sub-tab-btn ${activeSubTab === 'audio' ? 'active' : ''}`}
+                    onClick={() => handleTabChange('audio')}
+                    disabled={isSending}
+                    aria-pressed={activeSubTab === 'audio'}
+                  >
+                    Audio Massivo
+                  </button>
+                </div>
+              </section>
+
+              <section className="campaign-section" aria-label="Fonte de contatos">
+                <div className="section-header">
+                  <div>
+                    <p className="section-kicker">Contato</p>
+                    <h3 className="section-title">Fonte de contatos</h3>
+                  </div>
+                  <div className="status-chip status-chip--neutral">
+                    {contactCount ? `${contactCount} numeros` : 'Nenhum numero'}
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Importar CSV (opcional)</label>
+                  <input
+                    type="file"
+                    accept=".csv"
+                    onChange={handleFileUpload}
+                    disabled={isSending}
+                    className="form-file-input"
+                  />
+                  {csvError && <span className="form-error">{csvError}</span>}
+                  {csvData && (
+                    <div className="csv-selector">
+                      <div className="csv-selector-meta">
+                        <span className="status-chip status-chip--neutral">{csvData.rows.length} registros</span>
+                        <span className="status-chip status-chip--neutral">{csvData.headers.length} colunas</span>
                       </div>
-                    ))}
-                    {previewNumbers.length > 5 && (
-                      <div className="preview-more">+ {previewNumbers.length - 5} números</div>
-                    )}
-                  </div>
-                  {invalidCount > 0 && (
-                    <div className="preview-warning">
-                      <strong>{invalidCount}</strong> número(s) inválido(s) detectado(s)
+                      <label className="form-label">Coluna com telefones</label>
+                      <div className="csv-selector-row">
+                        <select
+                          value={selectedColumn}
+                          onChange={(e) => updatePreview(e.target.value, csvData)}
+                          className="form-select"
+                          disabled={isSending}
+                        >
+                          {csvData.headers.map((header) => (
+                            <option key={header} value={header}>{header}</option>
+                          ))}
+                        </select>
+                        <Button onClick={handleImportColumn} disabled={isSending || previewNumbers.length === 0}>
+                          Confirmar importacao
+                        </Button>
+                      </div>
+                      <span className="form-hint">{csvData.rows.length} registro(s) encontrado(s)</span>
+                      {previewNumbers.length > 0 && (
+                        <div className="csv-preview">
+                          <div className="preview-header">
+                            Previa ({previewNumbers.length} numeros formatados)
+                          </div>
+                          <div className="preview-content">
+                            {previewNumbers.slice(0, 5).map((phone, idx) => (
+                              <div key={idx} className={`preview-number ${!isValidPhone(phone) ? 'invalid' : 'valid'}`}>
+                                <span className="preview-number-value">{phone}</span>
+                                {!isValidPhone(phone) && <span className="preview-number-flag">Invalido</span>}
+                              </div>
+                            ))}
+                            {previewNumbers.length > 5 && (
+                              <div className="preview-more">+ {previewNumbers.length - 5} numeros</div>
+                            )}
+                          </div>
+                          {invalidCount > 0 && (
+                            <div className="preview-warning">
+                              <strong>{invalidCount}</strong> numero(s) invalido(s) detectado(s)
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
-              )}
-            </div>
-          )}
-        </div>
 
-        <div className="form-group">
-          <label className="form-label">Números (separados por vírgula)</label>
-          <textarea
-            className="form-textarea"
-            placeholder="5511999999999, 5511888888888, ..."
-            value={numbers}
-            onChange={(e) => setNumbers(e.target.value)}
-            disabled={isSending}
-            rows={3}
-          />
-          <span className="form-hint">Ex: 5511999999999, 5511888888888</span>
-        </div>
-      </section>
-
-      <section className="campaign-section" aria-label="Conteúdo da campanha">
-        <div className="section-header">
-          <div>
-            <p className="section-kicker">Conteúdo</p>
-            <h3 className="section-title">{activeSubTab === 'text' ? 'Mensagem de texto' : 'Áudio PTT'}</h3>
-          </div>
-          <div className="status-chip status-chip--neutral">{isSending ? 'Bloqueado durante envio' : 'Pronto para editar'}</div>
-        </div>
-
-        {activeSubTab === 'text' && (
-          <div className="form-group">
-            <label className="form-label">Mensagem</label>
-            <textarea
-              className="form-textarea"
-              placeholder="Digite sua mensagem..."
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              disabled={isSending}
-              rows={4}
-            />
-            <span className="form-hint">A mensagem será enviada para cada contato da campanha.</span>
-            {recipients.length > 0 && Object.keys(recipients[0]?.variables ?? {}).length > 0 && (
-              <div className="variable-chips">
-                <span className="form-hint">Colunas disponíveis:</span>
-                {Object.keys(recipients[0].variables).map((header) => (
-                  <button
-                    key={header}
-                    type="button"
-                    className="variable-chip"
-                    onClick={() => setMessage(prev => prev + `{{${header}}}`)}
-                  >
-                    {`{{${header}}}`}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {activeSubTab === 'text' && recipients.length > 0 && (
-          <div className="form-group">
-            <label className="form-label">Mensagem fallback</label>
-            <textarea
-              className="form-textarea"
-              placeholder="Mensagem alternativa quando variável estiver vazia..."
-              value={fallbackMessage}
-              onChange={(e) => setFallbackMessage(e.target.value)}
-              disabled={isSending}
-              rows={3}
-            />
-            <span className="form-hint">Esta mensagem será enviada quando alguma variável estiver vazia.</span>
-          </div>
-        )}
-
-        {activeSubTab === 'audio' && (
-          <div className="form-group">
-            <label className="form-label">Áudio (PTT) — Multi-método</label>
-
-            {!audioBase64 && !isLoading && (
-              <input
-                type="file"
-                accept="audio/*"
-                onChange={handleAudioUpload}
-                disabled={isSending}
-                className="form-file-input"
-              />
-            )}
-
-            {isLoading && (
-              <div className="audio-preview">
-                <div className="audio-preview-meta">
-                  <span className="audio-preview-name">{audioFileName}</span>
-                  <span className="audio-preview-label">Convertendo...</span>
+                <div className="form-group">
+                  <label className="form-label">Numeros (separados por virgula)</label>
+                  <textarea
+                    className="form-textarea"
+                    placeholder="5511999999999, 5511888888888, ..."
+                    value={numbers}
+                    onChange={(e) => setNumbers(e.target.value)}
+                    disabled={isSending}
+                    rows={3}
+                  />
+                  <span className="form-hint">Ex: 5511999999999, 5511888888888</span>
                 </div>
-                <div className="audio-converting-indicator">
-                  <span className="converting-spinner" />
-                  <span>Convertendo áudio (4 métodos em paralelo)...</span>
-                </div>
-              </div>
-            )}
+              </section>
 
-            {audioMethods.some((m) => m.dataUrl) && (
-              <div className="audio-preview">
-                <div className="audio-preview-meta">
-                  <span className="audio-preview-name">{audioFileName}</span>
-                  <span className="audio-preview-label">Selecione o método para envio</span>
+              <section className="campaign-section" aria-label="Conteudo da campanha">
+                <div className="section-header">
+                  <div>
+                    <p className="section-kicker">Conteudo</p>
+                    <h3 className="section-title">{activeSubTab === 'text' ? 'Mensagem de texto' : 'Audio PTT'}</h3>
+                  </div>
+                  <div className="status-chip status-chip--neutral">Pronto para editar</div>
                 </div>
 
-                <div className="audio-methods-list">
-                  {audioMethods.map((method) => {
-                    const isSelected = selectedAudioMethod === method.id
-                    return (
-                      <div key={method.id} className={`audio-method-card ${isSelected ? 'selected' : ''}`}>
-                        <div className="audio-method-header">
-                          <span className="audio-method-name">{method.label}</span>
-                          <span className={`audio-method-status ${method.error ? 'error' : method.dataUrl ? 'success' : 'pending'}`}>
-                            {method.converting
-                              ? 'Convertendo...'
-                              : method.error
-                                ? `✗ ${method.error}`
-                                : method.dataUrl
-                                  ? '✓ Pronto'
-                                  : '—'}
-                          </span>
-                        </div>
-                        {method.dataUrl && (
-                          <div className="audio-method-player">
-                            <audio controls src={method.dataUrl} className="audio-player" style={{ width: '100%' }} />
-                          </div>
-                        )}
-                        <div className="audio-method-actions">
+                {activeSubTab === 'text' && (
+                  <div className="form-group">
+                    <label className="form-label">Mensagem</label>
+                    <textarea
+                      className="form-textarea"
+                      placeholder="Digite sua mensagem..."
+                      value={message}
+                      onChange={(e) => setMessage(e.target.value)}
+                      disabled={isSending}
+                      rows={4}
+                    />
+                    <span className="form-hint">A mensagem sera enviada para cada contato da campanha.</span>
+                    {recipients.length > 0 && Object.keys(recipients[0]?.variables ?? {}).length > 0 && (
+                      <div className="variable-chips">
+                        <span className="form-hint">Colunas disponiveis:</span>
+                        {Object.keys(recipients[0].variables).map((header) => (
                           <button
+                            key={header}
                             type="button"
-                            className={`audio-method-select ${isSelected ? 'selected' : ''}`}
-                            onClick={() => {
-                              setSelectedAudioMethod(method.id)
-                              setAudioBase64(method.dataUrl)
-                            }}
-                            disabled={!method.dataUrl || isSending}
+                            className="variable-chip"
+                            onClick={() => setMessage(prev => prev + `{{${header}}}`)}
                           >
-                            {isSelected ? '✓ Selecionado para envio' : 'Selecionar para envio'}
+                            {`{{${header}}}`}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {activeSubTab === 'text' && recipients.length > 0 && (
+                  <div className="form-group">
+                    <label className="form-label">Mensagem fallback</label>
+                    <textarea
+                      className="form-textarea"
+                      placeholder="Mensagem alternativa quando variavel estiver vazia..."
+                      value={fallbackMessage}
+                      onChange={(e) => setFallbackMessage(e.target.value)}
+                      disabled={isSending}
+                      rows={3}
+                    />
+                    <span className="form-hint">Esta mensagem sera enviada quando alguma variavel estiver vazia.</span>
+                  </div>
+                )}
+
+                {activeSubTab === 'audio' && (
+                  <div className="form-group">
+                    <label className="form-label">Audio PTT</label>
+
+                    {!audioFileName && !isLoading && (
+                      <input
+                        type="file"
+                        accept="audio/*"
+                        onChange={handleAudioUpload}
+                        disabled={isSending}
+                        className="form-file-input"
+                      />
+                    )}
+
+                    {isLoading && (
+                      <div className="audio-preview">
+                        <div className="audio-preview-meta">
+                          <span className="audio-preview-name">{audioFileName}</span>
+                          <span className="audio-preview-label">Processando audio...</span>
+                        </div>
+                        <div className="audio-converting-indicator">
+                          <span className="converting-spinner" />
+                        </div>
+                      </div>
+                    )}
+
+                    {!isLoading && audioBase64 && (
+                      <div className="audio-preview">
+                        <div className="audio-preview-meta">
+                          <span className="audio-preview-name">{audioFileName}</span>
+                          <span className="audio-preview-label">Pronto</span>
+                        </div>
+                        <audio controls src={audioBase64} className="audio-player" />
+                        <div className="audio-preview-actions">
+                          <button type="button" className="audio-reset-btn" onClick={handleAudioReset} disabled={isSending}>
+                            Remover
+                          </button>
+                          <button type="button" className="audio-reset-btn" onClick={() => {
+                            handleAudioReset()
+                          }} disabled={isSending}>
+                            Trocar
                           </button>
                         </div>
                       </div>
-                    )
-                  })}
-                </div>
+                    )}
 
-                <button
-                  type="button"
-                  className="audio-reset-btn"
-                  onClick={handleAudioReset}
-                  disabled={isSending}
+                    {csvError && <span className="form-error">{csvError}</span>}
+                  </div>
+                )}
+              </section>
+            </>
+          )}
+
+          <details className="campaign-section safety-details" aria-label="Seguranca">
+            <summary className="safety-summary">
+              <span>Seguranca: 6-11s entre mensagens · Modo humanizado</span>
+            </summary>
+            <div className="bulk-info" style={{ marginTop: 8 }}>
+              <p>⏱️ Intervalo: 6-11 segundos entre mensagens</p>
+              <p>🔒 Envio humanizado para reduzir risco de bloqueio</p>
+            </div>
+          </details>
+
+          <div className="campaign-actions-sticky">
+            <div className="form-actions campaign-actions">
+              {isPaused ? (
+                <>
+                  <Button onClick={resumeBulkSend} disabled={loading} className="button--soft">
+                    Retomar envio
+                  </Button>
+                  <Button onClick={resetBulkSend} className="button--danger">
+                    Cancelar
+                  </Button>
+                </>
+              ) : isSending ? (
+                <Button onClick={pauseBulkSend} className="button--secondary">
+                  Pausar
+                </Button>
+              ) : (
+                <Button
+                  onClick={activeSubTab === 'text' ? handleSend : handleSendAudio}
+                  disabled={
+                    !canSend ||
+                    !numbers ||
+                    (activeSubTab === 'text' ? !message : !audioBase64)
+                  }
                 >
-                  Remover
-                </button>
-              </div>
-            )}
-
-            {csvError && <span className="form-error">{csvError}</span>}
+                  Iniciar campanha
+                </Button>
+              )}
+            </div>
           </div>
-        )}
-      </section>
 
-      <section className="campaign-section" aria-label="Segurança e execução">
-        <div className="section-header">
-          <div>
-            <p className="section-kicker">Segurança</p>
-            <h3 className="section-title">Contexto operacional</h3>
-          </div>
-        </div>
-        <div className="bulk-info">
-          <p>⏱️ Intervalo: 6-11 segundos entre mensagens</p>
-          <p>🔒 Envio humanizado para reduzir risco de bloqueio</p>
-        </div>
-      </section>
-
-      <section className="campaign-section" aria-label="Ações da campanha">
-        <div className="section-header">
-          <div>
-            <p className="section-kicker">Execução</p>
-            <h3 className="section-title">Ações</h3>
-          </div>
-          <div className={`status-chip ${isCompleted ? 'status-chip--success' : isPaused ? 'status-chip--warning' : isSending ? 'status-chip--neutral' : 'status-chip--neutral'}`}>
-            {isCompleted ? 'Concluída' : isPaused ? 'Pausada' : isSending ? 'Enviando' : 'Aguardando'}
-          </div>
-        </div>
-
-        <div className="form-actions campaign-actions">
-          {isPaused ? (
-            <Button onClick={resumeBulkSend} disabled={loading} className="button--soft">
-              Retomar envio
-            </Button>
-          ) : !isCompleted ? (
-            <Button
-              onClick={activeSubTab === 'text' ? handleSend : handleSendAudio}
-              disabled={
-                !canSend ||
-                !numbers ||
-                (activeSubTab === 'text' ? !message : !audioBase64)
-              }
-            >
-              {isSending ? 'Enviando...' : 'Iniciar envio'}
-            </Button>
-          ) : (
-            <Button onClick={resetBulkSend} className="button--soft">Novo envio</Button>
+          {(isSending || isPaused || (progress.status !== 'idle' && progress.status !== 'completed')) && (
+            <section className="campaign-section" aria-label="Progresso da campanha">
+              {renderProgress(progress)}
+            </section>
           )}
-          {isSending && (
-            <Button onClick={pauseBulkSend} className="button--secondary">
-              Pausar
-            </Button>
-          )}
-          {isPaused && (
-            <Button onClick={resetBulkSend} className="button--danger">
-              Cancelar
-            </Button>
-          )}
-        </div>
-      </section>
+        </>
+      )}
 
-      <section className="campaign-section" aria-label="Progresso da campanha">
-        <div className="section-header">
-          <div>
-            <p className="section-kicker">Feedback</p>
-            <h3 className="section-title">Progresso</h3>
-          </div>
-        </div>
-        {renderProgress(progress)}
-      </section>
-
-      {logs.length > 0 && (
+      {showLogs && logs.length > 0 && (
         <section className="campaign-section" aria-label="Logs da campanha">
           <div className="section-header">
             <div>
-              <p className="section-kicker">Operação</p>
+              <p className="section-kicker">Operacao</p>
               <h3 className="section-title">Logs</h3>
             </div>
             <div className="status-chip status-chip--neutral">{logs.length} entradas</div>
@@ -741,3 +746,4 @@ export function BulkSendForm() {
     </div>
   )
 }
+
