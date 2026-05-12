@@ -10,5 +10,5 @@ export type {
   InstagramProfileMessageResponse,
   InstagramProfileState,
 } from './instagram'
-export { useWppChats, useWppStatus, useBulkSend, formatPhoneNumber, BulkSendForm } from './whatsapp'
+export { useWppChats, useWppStatus, useBulkSend, formatPhoneNumber, BulkSendForm, CampaignWizard } from './whatsapp'
 export type { WppChat, WppStatus, BulkSendProgress } from './whatsapp'
