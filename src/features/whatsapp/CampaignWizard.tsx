@@ -4,6 +4,7 @@ import type { BulkSendProgress } from './useBulkSend'
 import { extractPlaceholders, validatePlaceholders, type CsvRecipient } from './csv-messages'
 import { convertToOggOpus, convertWithMediaRecorder, fileToRawDataUrl, convertAudioWithFallback } from './audio-converter'
 import type { WppStatus } from './useWppStatus'
+import { getProfileConfig, formatDuration, estimateCampaignDurationMs, type HumanizationProfile, type HumanizationConfig } from './humanization'
 
 import { Button } from '@/ui'
 
@@ -157,6 +158,23 @@ export function CampaignWizard({ onBack, wppStatus }: CampaignWizardProps) {
     .split(',')
     .map(item => item.trim())
     .filter(Boolean).length
+
+  const [humanizationProfile, setHumanizationProfile] = useState<HumanizationProfile>('balanced')
+  const [customConfig, setCustomConfig] = useState<Partial<HumanizationConfig>>({})
+
+  const humanizationConfig = useMemo(() => {
+    if (humanizationProfile === 'custom') {
+      return getProfileConfig('custom', customConfig)
+    }
+    return getProfileConfig(humanizationProfile)
+  }, [humanizationProfile, customConfig])
+
+  const avgMsgLen = message.length || 30
+  const estimatedDuration = useMemo(
+    () => estimateCampaignDurationMs(contactCount, avgMsgLen, humanizationConfig),
+    [contactCount, avgMsgLen, humanizationConfig],
+  )
+  const estimatedDurationText = useMemo(() => formatDuration(estimatedDuration), [estimatedDuration])
 
   const hasValidContacts = contactCount > 0 || previewNumbers.length > 0
   const canGoToMessage = hasValidContacts && csvError === ''
@@ -342,8 +360,8 @@ export function CampaignWizard({ onBack, wppStatus }: CampaignWizardProps) {
         }
       }
       const options = hasRecipients
-        ? { numbersText: numbers, messageText: message, recipients, fallbackMessage }
-        : { numbersText: numbers, messageText: message }
+        ? { numbersText: numbers, messageText: message, recipients, fallbackMessage, humanizationConfig }
+        : { numbersText: numbers, messageText: message, humanizationConfig }
       void startBulkSend(options)
     } else {
       void startBulkSendAudio(numbers, audioBase64)
@@ -662,19 +680,115 @@ export function CampaignWizard({ onBack, wppStatus }: CampaignWizardProps) {
               <div className="wizard-review-row">
                 <span className="wizard-review-icon">⏱️</span>
                 <div className="wizard-review-info">
-                  <span className="wizard-review-label">Intervalo</span>
-                  <span className="wizard-review-value">6-11 segundos entre mensagens</span>
-                </div>
-              </div>
-
-              <div className="wizard-review-row">
-                <span className="wizard-review-icon">🔒</span>
-                <div className="wizard-review-info">
-                  <span className="wizard-review-label">Modo</span>
-                  <span className="wizard-review-value">Humanizado para reduzir bloqueio</span>
+                  <span className="wizard-review-label">Estimativa</span>
+                  <span className="wizard-review-value">~{estimatedDurationText}</span>
                 </div>
               </div>
             </div>
+
+            {mode === 'text' && (
+              <div className="wizard-section" style={{ marginTop: 16 }}>
+                <div className="wizard-section-title" style={{ marginBottom: 10, fontWeight: 600, fontSize: 13, color: '#9CA3AF' }}>
+                  Perfil de humanizacao
+                </div>
+                <div className="humanization-cards" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {(['conservative', 'balanced', 'aggressive', 'custom'] as HumanizationProfile[]).map((profile) => {
+                    const tempConfig = profile === 'custom' ? getProfileConfig('custom', customConfig) : getProfileConfig(profile)
+                    const dur = formatDuration(estimateCampaignDurationMs(contactCount, avgMsgLen, tempConfig))
+                    const isSelected = humanizationProfile === profile
+                    const labels: Record<string, string[]> = {
+                      conservative: ['🐢', 'Conservador', `~${dur}`],
+                      balanced: ['⚖️', 'Balanceado', `~${dur}`],
+                      aggressive: ['⚡', 'Agressivo', `~${dur}`],
+                      custom: ['🔧', 'Personalizado', `~${dur}`],
+                    }
+                    const [emoji, name, durLabel] = labels[profile] || ['?', profile, '']
+                    return (
+                      <div
+                        key={profile}
+                        role="button"
+                        tabIndex={0}
+                        className={`humanization-card${isSelected ? ' humanization-card--selected' : ''}`}
+                        onClick={() => setHumanizationProfile(profile)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setHumanizationProfile(profile) }}
+                        style={{
+                          flex: '1 1 calc(50% - 8px)',
+                          minWidth: 140,
+                          padding: '10px 12px',
+                          borderRadius: 10,
+                          border: `2px solid ${isSelected ? '#3B82F6' : '#374151'}`,
+                          background: isSelected ? 'rgba(59,130,246,0.12)' : '#1F2937',
+                          cursor: 'pointer',
+                          transition: 'border-color 0.2s, background 0.2s',
+                        }}
+                      >
+                        <div style={{ fontSize: 15, marginBottom: 2 }}>{emoji} {name}</div>
+                        <div style={{ fontSize: 11, color: '#9CA3AF' }}>{durLabel}</div>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {humanizationProfile === 'custom' && (
+                  <div className="custom-config" style={{ marginTop: 12, padding: 12, background: '#111827', borderRadius: 10, fontSize: 12 }}>
+                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                      <label style={{ flex: '1 1 45%' }}>
+                        <span style={{ color: '#9CA3AF' }}>Min delay (s)</span>
+                        <input type="number" min={5} max={600} value={customConfig.minDelay ? customConfig.minDelay / 1000 : 25}
+                          onChange={(e) => setCustomConfig(prev => ({ ...prev, minDelay: Math.min(Number(e.target.value) * 1000, prev.maxDelay ?? 90000) }))}
+                          style={{ width: '100%', marginTop: 3, padding: '4px 8px', borderRadius: 6, border: '1px solid #374151', background: '#1F2937', color: '#F9FAFB' }} />
+                      </label>
+                      <label style={{ flex: '1 1 45%' }}>
+                        <span style={{ color: '#9CA3AF' }}>Max delay (s)</span>
+                        <input type="number" min={5} max={600} value={customConfig.maxDelay ? customConfig.maxDelay / 1000 : 90}
+                          onChange={(e) => setCustomConfig(prev => ({ ...prev, maxDelay: Math.max(Number(e.target.value) * 1000, prev.minDelay ?? 25000) }))}
+                          style={{ width: '100%', marginTop: 3, padding: '4px 8px', borderRadius: 6, border: '1px solid #374151', background: '#1F2937', color: '#F9FAFB' }} />
+                      </label>
+                      <label style={{ flex: '1 1 45%' }}>
+                        <span style={{ color: '#9CA3AF' }}>Digitacao (ms/caractere)</span>
+                        <input type="number" min={50} max={500} value={customConfig.typingSpeedMs ?? 150}
+                          onChange={(e) => setCustomConfig(prev => ({ ...prev, typingSpeedMs: Number(e.target.value) }))}
+                          style={{ width: '100%', marginTop: 3, padding: '4px 8px', borderRadius: 6, border: '1px solid #374151', background: '#1F2937', color: '#F9FAFB' }} />
+                      </label>
+                      <label style={{ flex: '1 1 45%' }}>
+                        <span style={{ color: '#9CA3AF' }}>Msgs lidas antes</span>
+                        <input type="number" min={0} max={20} value={customConfig.readCount ?? 4}
+                          onChange={(e) => setCustomConfig(prev => ({ ...prev, readCount: Number(e.target.value) }))}
+                          style={{ width: '100%', marginTop: 3, padding: '4px 8px', borderRadius: 6, border: '1px solid #374151', background: '#1F2937', color: '#F9FAFB' }} />
+                      </label>
+                    </div>
+                    <div style={{ display: 'flex', gap: 16, marginTop: 8, flexWrap: 'wrap' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#D1D5DB' }}>
+                        <input type="checkbox" checked={customConfig.openChat !== false}
+                          onChange={(e) => setCustomConfig(prev => ({ ...prev, openChat: e.target.checked }))} />
+                        Abrir chat
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#D1D5DB' }}>
+                        <input type="checkbox" checked={customConfig.readChat !== false}
+                          onChange={(e) => setCustomConfig(prev => ({ ...prev, readChat: e.target.checked }))} />
+                        Ler ultimas msgs
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#D1D5DB' }}>
+                        <input type="checkbox" checked={customConfig.burstMode === true}
+                          onChange={(e) => setCustomConfig(prev => ({ ...prev, burstMode: e.target.checked, burstSize: e.target.checked ? (prev.burstSize || 4) : 0, burstPauseMin: e.target.checked ? (prev.burstPauseMin || 300000) : 0, burstPauseMax: e.target.checked ? (prev.burstPauseMax || 480000) : 0 }))} />
+                        Modo rajada
+                      </label>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {contactCount > 200 && (
+              <div className="volume-banner volume-banner--warning" style={{ marginTop: 12, padding: '10px 14px', borderRadius: 10, background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', fontSize: 12, color: '#FCD34D' }}>
+                ⚠️ Volume alto ({contactCount} contatos). Recomendamos perfil Conservador e pausas ao longo do dia.
+              </div>
+            )}
+            {contactCount > 100 && contactCount <= 200 && (
+              <div className="volume-banner volume-banner--info" style={{ marginTop: 12, padding: '10px 14px', borderRadius: 10, background: 'rgba(59,130,246,0.12)', border: '1px solid rgba(59,130,246,0.25)', fontSize: 12, color: '#93C5FD' }}>
+                ℹ️ Volume moderado ({contactCount} contatos). Considere pausar a cada 50 envios por seguranca.
+              </div>
+            )}
 
             <button
               type="button"

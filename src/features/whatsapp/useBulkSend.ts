@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import type { CsvRecipient } from './csv-messages'
+import type { HumanizationConfig } from './humanization'
 
 export function formatPhoneNumber(phone: string): string {
   const cleaned = phone.replace(/\D/g, '')
@@ -28,6 +29,7 @@ export interface BulkSendOptions {
   messageText: string
   recipients?: CsvRecipient[]
   fallbackMessage?: string
+  humanizationConfig?: HumanizationConfig
 }
 
 interface BackgroundState {
@@ -126,7 +128,7 @@ export function useBulkSend() {
 
       const payload = typeof options === 'string'
         ? { numbersText: options, messageText: messageText ?? '', isAudio: false }
-        : { numbersText: options.numbersText, messageText: options.messageText, isAudio: false, recipients: options.recipients, fallbackMessage: options.fallbackMessage }
+        : { numbersText: options.numbersText, messageText: options.messageText, isAudio: false, recipients: options.recipients, fallbackMessage: options.fallbackMessage, humanizationConfig: options.humanizationConfig }
 
       chrome.runtime.sendMessage(
         {

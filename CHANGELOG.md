@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.5.0] - 2026-05-13
+### Added
+- Multi-layered WhatsApp message humanization: open chat, read messages, typing simulation before sending
+- Three humanization profiles: Conservative, Balanced (default), Aggressive, plus Custom with fine-grained controls
+- Persistent FAB overlay on WhatsApp Web showing campaign progress (compact circle / expanded bar)
+- Popup home screen now detects and displays active campaign state after reopen
+- Anti-overwrite protection: rejects new campaign start while one is running
+- Extension badge shows sending progress (blue) and completion (green)
+- Burst mode with configurable burst size and long pause between bursts
+
+### Changed
+- Per-contact delays now configurable per humanization profile instead of hardcoded 6-11s
+- Campaign sending pipeline includes markIsRead, openChatBottom, getMessages, markIsComposing
+- All text messages use humanized pipeline when humanization config is present
+
 ## [0.1.63] - 2026-05-11
 ### Changed
 - Replaced custom OGG muxer + WebCodecs AudioEncoder with opus-recorder (battle-tested WASM libopus 1.3.1 + OGG muxing)

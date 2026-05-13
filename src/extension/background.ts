@@ -1,3 +1,5 @@
+import { type HumanizationConfig } from '@/features/whatsapp/humanization'
+
 const STORAGE_KEY = 'chamalead_bulk_send_state'
 const UPDATE_STORAGE_KEY = 'chamalead_update_info'
 
@@ -77,10 +79,54 @@ interface StoredBulkSendState {
   currentIndex: number
   recipients?: CsvRecipient[]
   fallbackMessage?: string
+  humanizationConfig?: HumanizationConfig
 }
 
-function getRandomDelay(): number {
+let burstCount = 0
+
+function getHumanizedDelay(_state: StoredBulkSendState, config: HumanizationConfig): number {
+  if (config.burstMode && config.burstSize > 0 && burstCount >= config.burstSize - 1) {
+    burstCount = 0
+    const range = config.burstPauseMax - config.burstPauseMin
+    const basePause = Math.floor(Math.random() * (range + 1)) + config.burstPauseMin
+    const variation = 0.7 + Math.random() * 0.6
+    return Math.round(basePause * variation)
+  }
+
+  burstCount++
+  const range = config.maxDelay - config.minDelay
+  return Math.floor(Math.random() * (range + 1)) + config.minDelay
+}
+
+function getHumanizedFallbackDelay(): number {
   return Math.floor(Math.random() * (11000 - 6000 + 1)) + 6000
+}
+
+function estimateHumanizationDuration(message: string, config: HumanizationConfig): number {
+  const PRE_MSG_OVERHEAD_MS = 1000
+  const POST_MSG_OVERHEAD_MS = 800
+  const CHAT_OPEN_OVERHEAD_MS = 2000
+  const READ_CHAT_OVERHEAD_MS = 1500
+  const EXISTENCE_CHECK_OVERHEAD_MS = 1500
+
+  let total = EXISTENCE_CHECK_OVERHEAD_MS
+
+  if (config.openChat) {
+    total += CHAT_OPEN_OVERHEAD_MS
+  }
+
+  if (config.readChat && config.readCount > 0) {
+    total += READ_CHAT_OVERHEAD_MS
+  }
+
+  const avgCharPerMs = config.typingSpeedMs / 1000
+  const typingDuration = message.length * avgCharPerMs * 1000
+  total += typingDuration
+
+  total += PRE_MSG_OVERHEAD_MS
+  total += POST_MSG_OVERHEAD_MS
+
+  return Math.min(total, 300000)
 }
 
 function addLog(state: StoredBulkSendState, message: string): StoredBulkSendState {
@@ -99,6 +145,19 @@ async function getStoredState(): Promise<StoredBulkSendState | null> {
 
 async function setStoredState(state: StoredBulkSendState): Promise<void> {
   await chrome.storage.local.set({ [STORAGE_KEY]: state })
+
+  if (chrome.action && chrome.action.setBadgeText) {
+    if (state.status === 'sending' && state.sent > 0) {
+      void chrome.action.setBadgeText({ text: String(state.sent) })
+      void chrome.action.setBadgeBackgroundColor({ color: '#3B82F6' })
+    } else if (state.status === 'completed') {
+      void chrome.action.setBadgeText({ text: String(state.sent) })
+      void chrome.action.setBadgeBackgroundColor({ color: '#10B981' })
+      setTimeout(() => {
+        void chrome.action.setBadgeText({ text: '' })
+      }, 300000)
+    }
+  }
 }
 
 async function clearStoredState(): Promise<void> {
@@ -124,8 +183,21 @@ async function sendMessageToTab(
   tabId: number,
   phoneNumber: string,
   message: string,
+  humanizationConfig?: HumanizationConfig,
+  estimatedDurationMs?: number,
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    if (humanizationConfig) {
+      const response = await chrome.tabs.sendMessage(tabId, {
+        type: 'CHAMALEAD_SEND_MESSAGE_HUMANIZED',
+        phoneNumber,
+        message,
+        humanizationConfig,
+        estimatedDurationMs: estimatedDurationMs ?? 60000,
+      })
+      return response ?? { success: false, error: 'No response from content script' }
+    }
+
     const response = await chrome.tabs.sendMessage(tabId, {
       type: 'CHAMALEAD_SEND_MESSAGE',
       phoneNumber,
@@ -198,7 +270,7 @@ async function processNextNumber(state: StoredBulkSendState): Promise<void> {
       await setStoredState(afterSkip)
       return
     }
-    const delay = getRandomDelay()
+    const delay = getHumanizedFallbackDelay()
     setTimeout(() => void continueSending(), delay)
     return
   }
@@ -214,11 +286,23 @@ async function processNextNumber(state: StoredBulkSendState): Promise<void> {
     const messageParts = splitMessageByDoubleNewline(messageToSend)
     result = { success: true }
 
-    for (const part of messageParts) {
-      const partResult = await sendMessageToTab(tab.id, phone, part)
+    const config = state.humanizationConfig
+
+    for (let pi = 0; pi < messageParts.length; pi++) {
+      const part = messageParts[pi]
+      const estimatedMs = config ? estimateHumanizationDuration(part, config) : undefined
+
+      const partResult = await sendMessageToTab(tab.id, phone, part, config, estimatedMs)
       if (!partResult.success) {
         result = partResult
         break
+      }
+
+      if (pi < messageParts.length - 1) {
+        const microDelay = config ? 800 + Math.floor(Math.random() * 1200) : 0
+        if (microDelay > 0) {
+          await new Promise((r) => setTimeout(r, microDelay))
+        }
       }
     }
   }
@@ -249,7 +333,8 @@ async function processNextNumber(state: StoredBulkSendState): Promise<void> {
     return
   }
 
-  const delay = getRandomDelay()
+  const config = afterSend.humanizationConfig ?? state.humanizationConfig
+  const delay = config ? getHumanizedDelay(afterSend, config) : getHumanizedFallbackDelay()
   await setStoredState(addLog(afterSend, `Aguardando ${(delay / 1000).toFixed(1)}s...`))
 
   setTimeout(() => {
@@ -323,44 +408,61 @@ chrome.runtime.onMessage.addListener(
     }
 
     if (message?.type === 'CHAMALEAD_BULK_SEND_START') {
-      const numbersText = message.numbersText as string
-      const messageText = message.messageText as string
-      const audioBase64 = message.audioBase64 as string | undefined
-      const isAudio = message.isAudio as boolean
-      const recipients = message.recipients as CsvRecipient[] | undefined
-      const fallbackMessage = message.fallbackMessage as string | undefined
+      getStoredState().then((existingState) => {
+        if (existingState && (existingState.status === 'sending' || existingState.status === 'paused')) {
+          sendResponse({ success: false, error: 'Uma campanha ja esta em andamento' })
+          return
+        }
 
-      const numbers = numbersText
-        .split(',')
-        .map((n) => n.trim())
-        .filter((n) => n.length > 0)
-        .map(formatPhoneNumber)
+        const numbersText = message.numbersText as string
+        const messageText = message.messageText as string
+        const audioBase64 = message.audioBase64 as string | undefined
+        const isAudio = message.isAudio as boolean
+        const recipients = message.recipients as CsvRecipient[] | undefined
+        const fallbackMessage = message.fallbackMessage as string | undefined
+        const humanizationConfig = message.humanizationConfig as HumanizationConfig | undefined
 
-      if (numbers.length === 0) {
-        sendResponse({ success: false, error: 'Nenhum número válido encontrado' })
-        return
-      }
+        const numbers = numbersText
+          .split(',')
+          .map((n) => n.trim())
+          .filter((n) => n.length > 0)
+          .map(formatPhoneNumber)
 
-      const state: StoredBulkSendState = {
-        total: numbers.length,
-        sent: 0,
-        failed: 0,
-        currentPhone: null,
-        status: 'sending',
-        numbers,
-        message: messageText,
-        messageType: isAudio ? 'audio' : 'text',
-        audioBase64: isAudio ? audioBase64 : undefined,
-        logs: [],
-        currentIndex: 0,
-        recipients,
-        fallbackMessage,
-      }
+        if (numbers.length === 0) {
+          sendResponse({ success: false, error: 'Nenhum número válido encontrado' })
+          return
+        }
 
-      const withLog = addLog(state, `Iniciando envio para ${numbers.length} números...`)
-      setStoredState(withLog).then(() => {
-        sendResponse({ success: true })
-        void processNextNumber(withLog)
+        burstCount = 0
+
+        const state: StoredBulkSendState = {
+          total: numbers.length,
+          sent: 0,
+          failed: 0,
+          currentPhone: null,
+          status: 'sending',
+          numbers,
+          message: messageText,
+          messageType: isAudio ? 'audio' : 'text',
+          audioBase64: isAudio ? audioBase64 : undefined,
+          logs: [],
+          currentIndex: 0,
+          recipients,
+          fallbackMessage,
+          humanizationConfig,
+        }
+
+        const withLog = addLog(state, `Iniciando envio para ${numbers.length} números...`)
+
+        if (chrome.action && chrome.action.setBadgeText) {
+          void chrome.action.setBadgeText({ text: '0' })
+          void chrome.action.setBadgeBackgroundColor({ color: '#3B82F6' })
+        }
+
+        setStoredState(withLog).then(() => {
+          sendResponse({ success: true })
+          void processNextNumber(withLog)
+        })
       })
 
       return true
@@ -401,6 +503,9 @@ chrome.runtime.onMessage.addListener(
           state.status = 'idle'
           setStoredState(addLog(state, 'Envio cancelado')).then(() => {
             void clearStoredState().then(() => {
+              if (chrome.action && chrome.action.setBadgeText) {
+                void chrome.action.setBadgeText({ text: '' })
+              }
               sendResponse({ success: true })
             })
           })
@@ -424,6 +529,8 @@ chrome.runtime.onMessage.addListener(
           currentPhone: state.currentPhone,
           status: state.status,
           logs: state.logs,
+          humanizationConfig: state.humanizationConfig,
+          messageType: state.messageType,
         })
       })
       return true

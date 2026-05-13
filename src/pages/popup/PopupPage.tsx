@@ -1,11 +1,18 @@
-import { useState, useEffect } from 'react'
-import { CampaignWizard, useWppStatus, useActiveSiteContext, useInstagramProfile, InstagramProfileDetails } from '@/features'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { CampaignWizard, useWppStatus, useActiveSiteContext, useInstagramProfile, InstagramProfileDetails, GroupContactExtraction } from '@/features'
 import { Card } from '@/ui'
 import { UpdatesTab } from './UpdatesTab'
 
 declare const EXT_VERSION: string
 
-type AppView = 'home' | 'campaign' | 'about' | 'updates'
+type AppView = 'home' | 'campaign' | 'about' | 'updates' | 'group-extraction'
+
+interface CampaignSummary {
+  total: number
+  sent: number
+  failed: number
+  status: string
+}
 
 function openWhatsAppWeb() {
   void chrome.tabs.create({ url: 'https://web.whatsapp.com' })
@@ -53,14 +60,21 @@ function SiteUnsupported({ onOpenWhatsApp }: { onOpenWhatsApp: () => void }) {
   )
 }
 
-function HomeDashboard({ siteLabel, statusChip, wppReady, onStartCampaign, onViewAbout, onViewUpdates }: {
+function HomeDashboard({ siteLabel, statusChip, wppReady, onStartCampaign, onViewAbout, onViewUpdates, onStartGroupExtraction, campaignSummary }: {
   siteLabel: string
   statusChip: { text: string; variant: string }
   wppReady: boolean
   onStartCampaign: () => void
   onViewAbout: () => void
   onViewUpdates: () => void
+  onStartGroupExtraction: () => void
+  campaignSummary: CampaignSummary | null
 }) {
+  const percent = campaignSummary && campaignSummary.total > 0
+    ? Math.round(((campaignSummary.sent + campaignSummary.failed) / campaignSummary.total) * 100)
+    : 0
+  const remainder = campaignSummary ? campaignSummary.total - campaignSummary.sent - campaignSummary.failed : 0
+
   return (
     <main className="page" role="main" aria-label="ChamaLead">
       <div className="stack">
@@ -75,26 +89,71 @@ function HomeDashboard({ siteLabel, statusChip, wppReady, onStartCampaign, onVie
           </div>
         </header>
 
+        {campaignSummary && (
+          <Card className="hero-card">
+            <div className="hero-content">
+              <div className="hero-icon">📊</div>
+              <h2 className="hero-title">Campanha em andamento</h2>
+              <div style={{ width: '100%', height: 6, borderRadius: 3, background: '#374151', marginTop: 8, overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${percent}%`, background: campaignSummary.status === 'paused' ? '#F59E0B' : '#3B82F6', borderRadius: 3, transition: 'width 0.3s' }} />
+              </div>
+              <p className="hero-description" style={{ marginTop: 8 }}>
+                {campaignSummary.sent}/{campaignSummary.total} enviados · {campaignSummary.failed} falhas · {remainder} restantes
+              </p>
+              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                <button type="button" className="button hero-cta" onClick={onStartCampaign}>
+                  👁️ Ver campanha
+                </button>
+                {campaignSummary.status === 'paused' && (
+                  <button type="button" className="button hero-cta" onClick={onStartCampaign} style={{ background: '#F59E0B' }}>
+                    ▶ Retomar
+                  </button>
+                )}
+              </div>
+            </div>
+          </Card>
+        )}
+
+        {!campaignSummary && (
+          <Card className="hero-card">
+            <div className="hero-content">
+              <div className="hero-icon">⚡</div>
+              <h2 className="hero-title">Nova Campanha</h2>
+              <p className="hero-description">
+                Importe CSV, escreva a mensagem e dispare em massa com seguranca.
+              </p>
+              <ul className="hero-features">
+                <li>📝 Envio massivo de texto</li>
+                <li>🎤 Audio PTT em massa</li>
+                <li>🔤 Variaveis por contato</li>
+                <li>🐢 Envio humanizado</li>
+              </ul>
+              <button
+                type="button"
+                className="button hero-cta"
+                onClick={onStartCampaign}
+                disabled={!wppReady}
+              >
+                {wppReady ? '🚀 Criar campanha' : '🔒 Conecte ao WhatsApp'}
+              </button>
+            </div>
+          </Card>
+        )}
+
         <Card className="hero-card">
           <div className="hero-content">
-            <div className="hero-icon">⚡</div>
-            <h2 className="hero-title">Nova Campanha</h2>
+            <div className="hero-icon">📇</div>
+            <h2 className="hero-title">Extrair Contatos</h2>
             <p className="hero-description">
-              Importe CSV, escreva a mensagem e dispare em massa com seguranca.
+              Exporte contatos dos seus grupos em CSV.
             </p>
-            <ul className="hero-features">
-              <li>📝 Envio massivo de texto</li>
-              <li>🎤 Audio PTT em massa</li>
-              <li>🔤 Variaveis por contato</li>
-              <li>⏱️ 6-11s entre mensagens</li>
-            </ul>
             <button
               type="button"
               className="button hero-cta"
-              onClick={onStartCampaign}
+              onClick={onStartGroupExtraction}
               disabled={!wppReady}
             >
-              {wppReady ? '🚀 Criar campanha' : '🔒 Conecte ao WhatsApp'}
+              {wppReady ? '📂 Abrir extrator' : '🔒 Conecte ao WhatsApp'}
             </button>
           </div>
         </Card>
@@ -176,9 +235,51 @@ export function PopupPage() {
   const [view, setView] = useState<AppView>('home')
   const [showWelcome, setShowWelcome] = useState(false)
   const [welcomeChecked, setWelcomeChecked] = useState(false)
+  const [campaignSummary, setCampaignSummary] = useState<CampaignSummary | null>(null)
+  const campaignPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const { siteContext } = useActiveSiteContext()
   const { status: wppStatus } = useWppStatus(siteContext.state === 'resolved' && siteContext.isSupported)
   const { profileState, refresh } = useInstagramProfile(siteContext.state === 'resolved' && siteContext.site?.id === 'instagram')
+
+  const fetchCampaignState = useCallback(() => {
+    chrome.runtime.sendMessage({ type: 'CHAMALEAD_BULK_SEND_GET_STATE' }, (response) => {
+      if (!response || response.status === 'idle') {
+        setCampaignSummary(null)
+        return
+      }
+      setCampaignSummary({
+        total: response.total ?? 0,
+        sent: response.sent ?? 0,
+        failed: response.failed ?? 0,
+        status: response.status ?? 'idle',
+      })
+    })
+  }, [])
+
+  useEffect(() => {
+    fetchCampaignState()
+  }, [fetchCampaignState])
+
+  useEffect(() => {
+    if (view !== 'campaign' && campaignSummary && (campaignSummary.status === 'sending' || campaignSummary.status === 'paused')) {
+      campaignPollRef.current = setInterval(fetchCampaignState, 5000)
+    }
+    return () => {
+      if (campaignPollRef.current) {
+        clearInterval(campaignPollRef.current)
+        campaignPollRef.current = null
+      }
+    }
+  }, [view, campaignSummary, fetchCampaignState])
+
+  useEffect(() => {
+    if (!campaignSummary || campaignSummary.status === 'completed' || campaignSummary.status === 'error') {
+      if (campaignPollRef.current) {
+        clearInterval(campaignPollRef.current)
+        campaignPollRef.current = null
+      }
+    }
+  }, [campaignSummary])
 
   useEffect(() => {
     chrome.storage.local.get('chamalead_onboarded', (result) => {
@@ -254,6 +355,14 @@ export function PopupPage() {
     return null
   }
 
+  if (view === 'group-extraction') {
+    if (siteContext.site?.id === 'whatsapp') {
+      return <GroupContactExtraction onBack={() => setView('home')} wppStatus={wppStatus} />
+    }
+    setView('home')
+    return null
+  }
+
   if (view === 'about') {
     return <AboutView onBack={() => setView('home')} />
   }
@@ -290,6 +399,8 @@ export function PopupPage() {
       onStartCampaign={() => setView('campaign')}
       onViewAbout={() => setView('about')}
       onViewUpdates={() => setView('updates')}
+      onStartGroupExtraction={() => setView('group-extraction')}
+      campaignSummary={campaignSummary}
     />
   )
 }

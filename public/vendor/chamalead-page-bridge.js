@@ -5,8 +5,14 @@
   const CHATS_RESPONSE_TYPE = 'CHAMALEAD_PAGE_WPP_CHATS'
   const SEND_MESSAGE_REQUEST_TYPE = 'CHAMALEAD_PAGE_SEND_MESSAGE'
   const SEND_MESSAGE_RESPONSE_TYPE = 'CHAMALEAD_PAGE_SEND_MESSAGE_RESULT'
+  const SEND_MESSAGE_HUMANIZED_REQUEST_TYPE = 'CHAMALEAD_PAGE_SEND_MESSAGE_HUMANIZED'
+  const SEND_MESSAGE_HUMANIZED_RESPONSE_TYPE = 'CHAMALEAD_PAGE_SEND_MESSAGE_HUMANIZED_RESULT'
   const SEND_AUDIO_REQUEST_TYPE = 'CHAMALEAD_PAGE_SEND_AUDIO'
   const SEND_AUDIO_RESPONSE_TYPE = 'CHAMALEAD_PAGE_SEND_AUDIO_RESULT'
+  const GROUPS_REQUEST_TYPE = 'CHAMALEAD_PAGE_GET_WPP_GROUPS'
+  const GROUPS_RESPONSE_TYPE = 'CHAMALEAD_PAGE_WPP_GROUPS'
+  const PARTICIPANTS_REQUEST_TYPE = 'CHAMALEAD_PAGE_GET_WPP_PARTICIPANTS'
+  const PARTICIPANTS_RESPONSE_TYPE = 'CHAMALEAD_PAGE_WPP_PARTICIPANTS'
   const CHATS_LIMIT = 100
 
   function getWppStatus() {
@@ -99,6 +105,89 @@
       .catch((error) => {
         console.log('[ChamaLead:bridge] Failed to fetch chats', error)
         return { chats: [], total: 0, limitedTo: CHATS_LIMIT }
+      })
+  }
+
+  function getGroups() {
+    const wpp = globalThis.WPP
+    const status = getWppStatus()
+
+    if (!status.isReady || !status.isAuthenticated) {
+      return { groups: [] }
+    }
+
+    const listMethod = wpp?.chat?.list
+
+    const fetchChats =
+      typeof listMethod === 'function'
+        ? listMethod.bind(wpp.chat)
+        : null
+
+    if (!fetchChats) {
+      return { groups: [] }
+    }
+
+    return Promise.resolve(fetchChats({ count: CHATS_LIMIT }))
+      .then((chats) => {
+        const normalized = Array.isArray(chats) ? chats : []
+
+        const groups = normalized
+          .filter((chat) => chat.isGroup === true && !chat.isNewsletter)
+          .map((chat) => ({
+            id: String(chat?.id?._serialized || chat?.id || ''),
+            name: chat?.name || chat?.rawJson?.subject || '',
+          }))
+          .filter((g) => g.id && g.id.includes('@g.us'))
+
+        console.log('[ChamaLead:bridge] Groups fetched', { total: groups.length })
+        return { groups }
+      })
+      .catch((error) => {
+        console.log('[ChamaLead:bridge] Failed to fetch groups', error)
+        return { groups: [] }
+      })
+  }
+
+  function getParticipants(groupId) {
+    const wpp = globalThis.WPP
+    const status = getWppStatus()
+
+    if (!status.isReady || !status.isAuthenticated) {
+      return { participants: [], error: 'WhatsApp not ready' }
+    }
+
+    if (!wpp?.group?.getParticipants) {
+      return { participants: [], error: 'WPP.group.getParticipants not available' }
+    }
+
+    return Promise.resolve(wpp.group.getParticipants(groupId))
+      .then((participants) => {
+        const models = Array.isArray(participants)
+          ? participants
+          : (participants?.getModelsArray ? participants.getModelsArray() : [])
+
+        const rows = []
+        for (const p of models) {
+          const rawId = String(p?.id?._serialized || p?.id || '')
+          if (!rawId || rawId.includes('@lid')) continue
+
+          const phone = rawId.replace('@c.us', '')
+          if (!phone || !/^\d+$/.test(phone)) continue
+
+          const isAdmin = p.isAdmin === true || p.isSuperAdmin === true
+
+          rows.push({ phone, is_admin: isAdmin })
+        }
+
+        console.log('[ChamaLead:bridge] Participants fetched', {
+          groupId,
+          total: rows.length,
+        })
+        return { participants: rows }
+      })
+      .catch((error) => {
+        console.log('[ChamaLead:bridge] Failed to fetch participants', error)
+        return { participants: [], error: String(error) }
       })
   }
 
@@ -409,6 +498,91 @@
     }
   }
 
+  function randomMicroDelay(minMs, maxMs) {
+    const rand = crypto.getRandomValues(new Uint32Array(1))[0]
+    const range = maxMs - minMs
+    return minMs + (rand % (range + 1))
+  }
+
+  function calcTypingDuration(message, speedMsPerChar) {
+    const base = message.length * speedMsPerChar
+    const variation = 0.85 + (crypto.getRandomValues(new Uint32Array(1))[0] % 31) / 100
+    return Math.round(base * variation)
+  }
+
+  async function sendMessageHumanized(phoneNumber, message, humanization) {
+    const wpp = globalThis.WPP
+    const status = getWppStatus()
+
+    if (!status.isReady || !status.isAuthenticated) {
+      return { success: false, error: 'WhatsApp not ready or not authenticated' }
+    }
+
+    const chatId = `${phoneNumber}@c.us`
+
+    try {
+      if (humanization.openChat) {
+        await randomMicroDelay(200, 600)
+        try {
+          const openMethod = wpp?.chat?.openChatBottom
+          if (openMethod) {
+            await openMethod.call(wpp.chat, chatId)
+          }
+        } catch (_e) {
+          console.log('[ChamaLead:bridge] openChatBottom failed, continuing', _e)
+        }
+        await randomMicroDelay(800, 1500)
+      }
+
+      if (humanization.readChat && humanization.readCount > 0) {
+        try {
+          const getMsgMethod = wpp?.chat?.getMessages
+          if (getMsgMethod) {
+            await getMsgMethod.call(wpp.chat, chatId, { count: humanization.readCount })
+          }
+        } catch (_e) {
+          console.log('[ChamaLead:bridge] getMessages failed, continuing', _e)
+        }
+        await randomMicroDelay(400, 1000)
+      }
+
+      const typingDuration = calcTypingDuration(message, humanization.typingSpeedMs)
+      const cappedTyping = Math.min(typingDuration, 30000)
+
+      try {
+        const composeMethod = wpp?.chat?.markIsComposing
+        if (composeMethod) {
+          await composeMethod.call(wpp.chat, chatId, cappedTyping)
+        }
+      } catch (_e) {
+        console.log('[ChamaLead:bridge] markIsComposing failed, continuing', _e)
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, cappedTyping))
+
+      const sendMethod = wpp?.chat?.sendTextMessage
+
+      if (!sendMethod) {
+        try { wpp?.chat?.markIsPaused?.call(wpp.chat, chatId) } catch (_e) {}
+        return { success: false, error: 'Send method not available' }
+      }
+
+      let result
+      try {
+        result = await sendMethod.call(wpp.chat, chatId, message)
+      } finally {
+        try { wpp?.chat?.markIsPaused?.call(wpp.chat, chatId) } catch (_e) {}
+      }
+
+      console.log('[ChamaLead:bridge] Humanized message sent to', phoneNumber)
+      return { success: true, result }
+    } catch (error) {
+      try { globalThis.WPP?.chat?.markIsPaused?.call(globalThis.WPP.chat, chatId) } catch (_e) {}
+      console.log('[ChamaLead:bridge] Failed to send humanized message', error)
+      return { success: false, error: String(error) }
+    }
+  }
+
   window.addEventListener('message', (event) => {
     if (event.source !== window) {
       return
@@ -479,6 +653,38 @@
       return
     }
 
+    if (data.type === SEND_MESSAGE_HUMANIZED_REQUEST_TYPE) {
+      const phoneNumber = data.phoneNumber
+      const message = data.message
+      const humanization = data.humanizationConfig
+
+      if (!phoneNumber || !message) {
+        window.postMessage(
+          {
+            type: SEND_MESSAGE_HUMANIZED_RESPONSE_TYPE,
+            requestId: data.requestId,
+            success: false,
+            error: 'Missing phoneNumber or message',
+          },
+          '*',
+        )
+        return
+      }
+
+      void Promise.resolve(sendMessageHumanized(phoneNumber, message, humanization || {})).then((result) => {
+        window.postMessage(
+          {
+            type: SEND_MESSAGE_HUMANIZED_RESPONSE_TYPE,
+            requestId: data.requestId,
+            success: result.success,
+            error: result.error,
+          },
+          '*',
+        )
+      })
+      return
+    }
+
     if (data.type === SEND_AUDIO_REQUEST_TYPE) {
       const phoneNumber = data.phoneNumber
       const audioBase64 = data.audioBase64
@@ -502,6 +708,33 @@
             type: SEND_AUDIO_RESPONSE_TYPE,
             requestId: data.requestId,
             success: result.success,
+            error: result.error,
+          },
+          '*',
+        )
+      })
+    }
+
+    if (data.type === GROUPS_REQUEST_TYPE) {
+      void Promise.resolve(getGroups()).then((result) => {
+        window.postMessage(
+          {
+            type: GROUPS_RESPONSE_TYPE,
+            requestId: data.requestId,
+            groups: result.groups,
+          },
+          '*',
+        )
+      })
+    }
+
+    if (data.type === PARTICIPANTS_REQUEST_TYPE) {
+      void Promise.resolve(getParticipants(data.groupId)).then((result) => {
+        window.postMessage(
+          {
+            type: PARTICIPANTS_RESPONSE_TYPE,
+            requestId: data.requestId,
+            participants: result.participants,
             error: result.error,
           },
           '*',

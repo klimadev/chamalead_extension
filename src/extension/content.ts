@@ -20,10 +20,17 @@ const PAGE_CHATS_REQUEST_TYPE = 'CHAMALEAD_PAGE_GET_WPP_CHATS'
 const PAGE_CHATS_RESPONSE_TYPE = 'CHAMALEAD_PAGE_WPP_CHATS'
 const PAGE_SEND_MESSAGE_REQUEST_TYPE = 'CHAMALEAD_PAGE_SEND_MESSAGE'
 const PAGE_SEND_MESSAGE_RESPONSE_TYPE = 'CHAMALEAD_PAGE_SEND_MESSAGE_RESULT'
+const PAGE_SEND_MESSAGE_HUMANIZED_REQUEST_TYPE = 'CHAMALEAD_PAGE_SEND_MESSAGE_HUMANIZED'
+const PAGE_SEND_MESSAGE_HUMANIZED_RESPONSE_TYPE = 'CHAMALEAD_PAGE_SEND_MESSAGE_HUMANIZED_RESULT'
 const PAGE_SEND_AUDIO_REQUEST_TYPE = 'CHAMALEAD_PAGE_SEND_AUDIO'
 const PAGE_SEND_AUDIO_RESPONSE_TYPE = 'CHAMALEAD_PAGE_SEND_AUDIO_RESULT'
+const PAGE_GROUPS_REQUEST_TYPE = 'CHAMALEAD_PAGE_GET_WPP_GROUPS'
+const PAGE_GROUPS_RESPONSE_TYPE = 'CHAMALEAD_PAGE_WPP_GROUPS'
+const PAGE_PARTICIPANTS_REQUEST_TYPE = 'CHAMALEAD_PAGE_GET_WPP_PARTICIPANTS'
+const PAGE_PARTICIPANTS_RESPONSE_TYPE = 'CHAMALEAD_PAGE_WPP_PARTICIPANTS'
 const PAGE_INSTAGRAM_PROFILE_REQUEST_TYPE = 'CHAMALEAD_PAGE_GET_IG_PROFILE'
 const PAGE_INSTAGRAM_PROFILE_RESPONSE_TYPE = 'CHAMALEAD_PAGE_IG_PROFILE_RESULT'
+const PAGE_PARTICIPANTS_TIMEOUT_MS = 15000
 const PAGE_AUDIO_TIMEOUT_MS = 30000
 
 let injectionAttempts = 0
@@ -132,6 +139,178 @@ function injectInstagramPageBridge(): void {
   console.info('[ChamaLead] Instagram page bridge script appended to DOM')
 }
 
+let fabElement: HTMLDivElement | null = null
+let fabExpanded = false
+let fabPollingId: ReturnType<typeof setInterval> | null = null
+let fabAutoRemoveId: ReturnType<typeof setTimeout> | null = null
+
+interface FabState {
+  total: number
+  sent: number
+  failed: number
+  status: string
+}
+
+function createFabOverlay(): void {
+  if (fabElement) return
+
+  fabElement = document.createElement('div')
+  fabElement.id = 'chamalead-fab-overlay'
+  fabElement.style.cssText = [
+    'position: fixed',
+    'bottom: 100px',
+    'right: 20px',
+    'z-index: 9999',
+    'font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    'font-size: 14px',
+    'cursor: pointer',
+    'user-select: none',
+    'transition: all 0.2s ease',
+  ].join(';') + ';'
+
+  fabElement.addEventListener('click', () => {
+    fabExpanded = !fabExpanded
+    const latest = latestFabState
+    renderFabContent(fabElement!, latest)
+  })
+
+  document.body.appendChild(fabElement)
+  renderFabContent(fabElement, null)
+}
+
+function getFabBackgroundColor(status: string): string {
+  switch (status) {
+    case 'sending': return '#3B82F6'
+    case 'paused': return '#F59E0B'
+    case 'completed': return '#10B981'
+    case 'error': return '#EF4444'
+    default: return '#6B7280'
+  }
+}
+
+function renderFabContent(el: HTMLDivElement, state: FabState | null): void {
+  if (!state || state.status === 'idle') {
+    el.style.display = 'none'
+    return
+  }
+  el.style.display = ''
+
+  const color = getFabBackgroundColor(state.status)
+  const percent = state.total > 0 ? Math.round(((state.sent + state.failed) / state.total) * 100) : 0
+  const remainder = state.total - state.sent - state.failed
+
+  if (!fabExpanded) {
+    el.innerHTML = ''
+    el.style.cssText += ';width:56px;height:56px;border-radius:50%'
+    const circle = document.createElement('div')
+    circle.style.cssText = [
+      `background:${color}`,
+      'width:100%',
+      'height:100%',
+      'border-radius:50%',
+      'display:flex',
+      'align-items:center',
+      'justify-content:center',
+      'color:#fff',
+      'font-weight:700',
+      'font-size:13px',
+      'box-shadow:0 4px 12px rgba(0,0,0,0.25)',
+    ].join(';') + ';'
+    circle.textContent = `${state.sent + state.failed}/${state.total}`
+    el.appendChild(circle)
+  } else {
+    el.innerHTML = ''
+    el.style.cssText += ';width:220px;padding:12px 16px;border-radius:12px'
+    el.style.background = '#1F2937'
+    el.style.color = '#F9FAFB'
+    el.style.boxShadow = '0 4px 16px rgba(0,0,0,0.3)'
+
+    const header = document.createElement('div')
+    header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:8px'
+    header.innerHTML = `<span style="font-weight:700">📊 Campanha</span><span style="color:#9CA3AF;font-size:12px">${state.status}</span>`
+    el.appendChild(header)
+
+    const bar = document.createElement('div')
+    bar.style.cssText = `height:6px;border-radius:3px;background:#374151;margin-bottom:8px;overflow:hidden`
+    bar.innerHTML = `<div style="height:100%;width:${percent}%;background:${color};border-radius:3px;transition:width 0.3s"></div>`
+    el.appendChild(bar)
+
+    const stats = document.createElement('div')
+    stats.style.cssText = 'display:flex;gap:12px;font-size:12px;margin-bottom:4px'
+    stats.innerHTML = `<span>✅ ${state.sent}</span><span>❌ ${state.failed}</span><span>⏳ ${remainder}</span>`
+    el.appendChild(stats)
+
+    const link = document.createElement('div')
+    link.style.cssText = 'font-size:11px;color:#9CA3AF;margin-top:4px'
+    link.textContent = 'Gerencie na extensao'
+    el.appendChild(link)
+  }
+}
+
+let latestFabState: FabState | null = null
+
+function updateFabOverlay(stateData: FabState | null): void {
+  latestFabState = stateData
+  if (!fabElement) {
+    if (stateData && stateData.status !== 'idle' && stateData.status !== 'completed' && stateData.status !== 'error') {
+      createFabOverlay()
+    }
+    return
+  }
+  if (!stateData || stateData.status === 'idle') {
+    fabElement.style.display = 'none'
+    return
+  }
+  renderFabContent(fabElement, stateData)
+}
+
+function removeFabOverlay(): void {
+  if (fabPollingId) {
+    clearInterval(fabPollingId)
+    fabPollingId = null
+  }
+  if (fabAutoRemoveId) {
+    clearTimeout(fabAutoRemoveId)
+    fabAutoRemoveId = null
+  }
+  if (fabElement) {
+    fabElement.remove()
+    fabElement = null
+  }
+  fabExpanded = false
+  latestFabState = null
+}
+
+function startFabPolling(): void {
+  if (fabPollingId) return
+  fabPollingId = setInterval(async () => {
+    try {
+      const response = await chrome.runtime.sendMessage({ type: 'CHAMALEAD_BULK_SEND_GET_STATE' })
+      const state: FabState | null = response && response.status !== 'idle' ? response as FabState : null
+      updateFabOverlay(state)
+      if (state && (state.status === 'completed' || state.status === 'error')) {
+        if (!fabAutoRemoveId) {
+          fabAutoRemoveId = setTimeout(() => {
+            removeFabOverlay()
+          }, 30000)
+        }
+      }
+    } catch {
+      // Background may not be ready
+    }
+  }, 2000)
+}
+
+function restoreFabFromExistingCampaign(): void {
+  chrome.runtime.sendMessage({ type: 'CHAMALEAD_BULK_SEND_GET_STATE' }, (response) => {
+    const state = response && response.status !== 'idle' ? response as FabState : null
+    if (state && state.status === 'sending') {
+      updateFabOverlay(state)
+      startFabPolling()
+    }
+  })
+}
+
 function scheduleRetry(): void {
   if (injectionAttempts >= MAX_RETRIES) {
     console.error(`[ChamaLead] Max retries (${MAX_RETRIES}) reached, giving up`)
@@ -172,7 +351,9 @@ function injectWhatsAppScriptsAfterFullLoad(): void {
       injectionAttempts = 0
       injectPageBridge()
       injectWaJs()
+      restoreFabFromExistingCampaign()
     })
+    restoreFabFromExistingCampaign()
     return
   }
 
@@ -187,7 +368,9 @@ function injectWhatsAppScriptsAfterFullLoad(): void {
         injectionAttempts = 0
         injectPageBridge()
         injectWaJs()
+        restoreFabFromExistingCampaign()
       })
+      restoreFabFromExistingCampaign()
     },
     { once: true },
   )
@@ -335,6 +518,72 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true
   }
 
+  if (isWhatsAppSite() && message?.type === 'CHAMALEAD_GET_WPP_GROUPS') {
+    if (!pageBridgeReady) {
+      injectPageBridge()
+    }
+
+    const requestId = crypto.randomUUID()
+    const timeoutId = window.setTimeout(() => {
+      window.removeEventListener('message', onResponse)
+      sendResponse({ groups: [] })
+    }, PAGE_BRIDGE_TIMEOUT_MS)
+
+    function onResponse(event: MessageEvent): void {
+      if (event.source !== window) return
+
+      const data = event.data as Record<string, unknown> | null
+      if (!data || data.type !== PAGE_GROUPS_RESPONSE_TYPE || data.requestId !== requestId) return
+
+      window.clearTimeout(timeoutId)
+      window.removeEventListener('message', onResponse)
+
+      const groups = Array.isArray(data.groups) ? data.groups : []
+      sendResponse({ groups })
+    }
+
+    window.addEventListener('message', onResponse)
+    window.postMessage({ type: PAGE_GROUPS_REQUEST_TYPE, requestId }, '*')
+
+    return true
+  }
+
+  if (isWhatsAppSite() && message?.type === 'CHAMALEAD_GET_WPP_PARTICIPANTS') {
+    if (!pageBridgeReady) {
+      injectPageBridge()
+    }
+
+    const groupId = message.groupId
+    if (!groupId) {
+      sendResponse({ participants: [], error: 'Missing groupId' })
+      return true
+    }
+
+    const requestId = crypto.randomUUID()
+    const timeoutId = window.setTimeout(() => {
+      window.removeEventListener('message', onResponse)
+      sendResponse({ participants: [], error: 'Tempo esgotado ao carregar participantes' })
+    }, PAGE_PARTICIPANTS_TIMEOUT_MS)
+
+    function onResponse(event: MessageEvent): void {
+      if (event.source !== window) return
+
+      const data = event.data as Record<string, unknown> | null
+      if (!data || data.type !== PAGE_PARTICIPANTS_RESPONSE_TYPE || data.requestId !== requestId) return
+
+      window.clearTimeout(timeoutId)
+      window.removeEventListener('message', onResponse)
+
+      const participants = Array.isArray(data.participants) ? data.participants : []
+      sendResponse({ participants, error: data.error ?? null })
+    }
+
+    window.addEventListener('message', onResponse)
+    window.postMessage({ type: PAGE_PARTICIPANTS_REQUEST_TYPE, requestId, groupId }, '*')
+
+    return true
+  }
+
   if (message?.type === 'CHAMALEAD_SEND_MESSAGE') {
     if (!pageBridgeReady) {
       injectPageBridge()
@@ -380,6 +629,57 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       requestId,
       phoneNumber,
       message: messageText,
+    }, '*')
+
+    return true
+  }
+
+  if (message?.type === 'CHAMALEAD_SEND_MESSAGE_HUMANIZED') {
+    if (!pageBridgeReady) {
+      injectPageBridge()
+    }
+
+    const phoneNumber = message.phoneNumber
+    const messageText = message.message
+    const humanizationConfig = message.humanizationConfig
+    const estimatedDurationMs = typeof message.estimatedDurationMs === 'number' ? message.estimatedDurationMs : 60000
+
+    if (!phoneNumber || !messageText) {
+      sendResponse({ success: false, error: 'Missing phoneNumber or message' })
+      return true
+    }
+
+    const cappedTimeout = Math.min(Math.round(estimatedDurationMs * 1.5), 300000)
+
+    const requestId = crypto.randomUUID()
+    const timeoutId = window.setTimeout(() => {
+      window.removeEventListener('message', onSendResponse)
+      sendResponse({ success: false, error: 'Timeout (humanized)' })
+    }, cappedTimeout)
+
+    function onSendResponse(event: MessageEvent): void {
+      if (event.source !== window) return
+
+      const data = event.data as Record<string, unknown> | null
+      if (!data || data.type !== PAGE_SEND_MESSAGE_HUMANIZED_RESPONSE_TYPE || data.requestId !== requestId) return
+
+      window.clearTimeout(timeoutId)
+      window.removeEventListener('message', onSendResponse)
+
+      console.log('[ChamaLead:content] Humanized send response', data)
+      sendResponse({
+        success: data.success === true,
+        error: data.error,
+      })
+    }
+
+    window.addEventListener('message', onSendResponse)
+    window.postMessage({
+      type: PAGE_SEND_MESSAGE_HUMANIZED_REQUEST_TYPE,
+      requestId,
+      phoneNumber,
+      message: messageText,
+      humanizationConfig,
     }, '*')
 
     return true
