@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.3] - 2026-05-13
+### Changed
+- Humanization profile selection is now its own wizard step (step 3: Perfil) with visually improved cards
+- Profile cards redesigned with accent colors, descriptions, stats, and selected state with checkmark
+- Review step (step 4) simplified to show selected profile summary
+- Added proper CSS classes for profiles, custom config panel, and volume banners
+
 ## [0.5.2] - 2026-05-13
 ### Added
 - Diagnostic logging in background to trace humanizationConfig flow (service worker console)

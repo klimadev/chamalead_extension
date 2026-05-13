@@ -112,7 +112,7 @@ function ProgressBar({ prog }: { prog: BulkSendProgress }) {
   )
 }
 
-type WizardStep = 1 | 2 | 3
+type WizardStep = 1 | 2 | 3 | 4
 type CampaignPhase = 'building' | 'sending' | 'paused' | 'completed'
 type CampaignMode = 'text' | 'audio'
 
@@ -121,7 +121,7 @@ interface CampaignWizardProps {
   wppStatus: WppStatus
 }
 
-const STEP_LABELS: Record<WizardStep, string> = { 1: 'Contatos', 2: 'Mensagem', 3: 'Revisao' }
+const STEP_LABELS: Record<WizardStep, string> = { 1: 'Contatos', 2: 'Mensagem', 3: 'Perfil', 4: 'Revisao' }
 
 export function CampaignWizard({ onBack, wppStatus }: CampaignWizardProps) {
   const [step, setStep] = useState<WizardStep>(1)
@@ -387,12 +387,14 @@ export function CampaignWizard({ onBack, wppStatus }: CampaignWizardProps) {
 
   const goNext = () => {
     if (step === 1 && canGoToMessage) { setStep(2); setCsvError('') }
-    if (step === 2) setStep(3)
+    if (step === 2 && canGoToProfile) setStep(3)
+    if (step === 3) setStep(4)
   }
 
   const goPrev = () => {
     if (step === 2) setStep(1)
     if (step === 3) setStep(2)
+    if (step === 4) setStep(3)
   }
 
   const handlePause = () => { pauseBulkSend() }
@@ -400,7 +402,7 @@ export function CampaignWizard({ onBack, wppStatus }: CampaignWizardProps) {
   const handleCancel = () => { resetBulkSend(); setStep(1) }
   const handleReset = () => { resetBulkSend(); setShowLogs(false); setStep(1) }
 
-  const canGoToReview = mode === 'text' ? message.trim().length > 0 : !!audioBase64
+  const canGoToProfile = mode === 'text' ? message.trim().length > 0 : !!audioBase64
 
   if (phase === 'sending' || phase === 'paused') {
     return (
@@ -498,11 +500,11 @@ export function CampaignWizard({ onBack, wppStatus }: CampaignWizardProps) {
       <div className="wizard">
         <div className="wizard-header">
           <button type="button" className="wizard-back-btn" onClick={onBack}>← Voltar</button>
-          <span className="wizard-step-count">Passo {step}/3</span>
+          <span className="wizard-step-count">Passo {step}/4</span>
         </div>
 
         <div className="wizard-step-indicator">
-          {([1, 2, 3] as WizardStep[]).map((s) => (
+          {([1, 2, 3, 4] as WizardStep[]).map((s) => (
             <span key={s} className={`wizard-step-dot ${s === step ? 'active' : s < step ? 'done' : ''}`}>
               {s < step ? '✓' : s === step ? '●' : '○'} {STEP_LABELS[s]}
             </span>
@@ -695,6 +697,172 @@ export function CampaignWizard({ onBack, wppStatus }: CampaignWizardProps) {
 
         {step === 3 && (
           <div className="wizard-step-content">
+            <div className="humanization-step">
+              <div className="humanization-step-header">
+                <h3 className="humanization-step-title">Escolha o perfil de humanizacao</h3>
+                <p className="humanization-step-desc">
+                  Quanto mais conservador, menor o risco de bloqueio. Cada perfil ajusta delays entre mensagens, simulacao de digitacao e leitura.
+                </p>
+              </div>
+
+              <div className="profile-cards">
+                <div
+                  className={`profile-card profile-card--conservative ${humanizationProfile === 'conservative' ? 'profile-card--selected' : ''}`}
+                  role="button" tabIndex={0}
+                  onClick={() => setHumanizationProfile('conservative')}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setHumanizationProfile('conservative') }}
+                >
+                  <div className="profile-card-accent" />
+                  <div className="profile-card-body">
+                    <div className="profile-card-header">
+                      <span className="profile-card-icon">🐢</span>
+                      <span className="profile-card-name">Conservador</span>
+                    </div>
+                    <p className="profile-card-desc">Maxima seguranca. Delays de 30-45s entre mensagens. Simula leitura de 3-5 mensagens antes de enviar.</p>
+                    <div className="profile-card-meta">
+                      <span className="profile-card-badge">
+                        ~{formatDuration(estimateCampaignDurationMs(contactCount, avgMsgLen, getProfileConfig('conservative')))} p/ {contactCount} contatos
+                      </span>
+                    </div>
+                  </div>
+                  {humanizationProfile === 'conservative' && <span className="profile-card-check">✓</span>}
+                </div>
+
+                <div
+                  className={`profile-card profile-card--balanced ${humanizationProfile === 'balanced' ? 'profile-card--selected' : ''}`}
+                  role="button" tabIndex={0}
+                  onClick={() => setHumanizationProfile('balanced')}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setHumanizationProfile('balanced') }}
+                >
+                  <div className="profile-card-accent" />
+                  <div className="profile-card-body">
+                    <div className="profile-card-header">
+                      <span className="profile-card-icon">⚖️</span>
+                      <span className="profile-card-name">Balanceado</span>
+                      <span className="profile-card-recommended">Recomendado</span>
+                    </div>
+                    <p className="profile-card-desc">Equilibrio entre seguranca e velocidade. Delays de 25-90s com pausas de 5-8min a cada 4 mensagens.</p>
+                    <div className="profile-card-meta">
+                      <span className="profile-card-badge">
+                        ~{formatDuration(estimateCampaignDurationMs(contactCount, avgMsgLen, getProfileConfig('balanced')))} p/ {contactCount} contatos
+                      </span>
+                    </div>
+                  </div>
+                  {humanizationProfile === 'balanced' && <span className="profile-card-check">✓</span>}
+                </div>
+
+                <div
+                  className={`profile-card profile-card--aggressive ${humanizationProfile === 'aggressive' ? 'profile-card--selected' : ''}`}
+                  role="button" tabIndex={0}
+                  onClick={() => setHumanizationProfile('aggressive')}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setHumanizationProfile('aggressive') }}
+                >
+                  <div className="profile-card-accent" />
+                  <div className="profile-card-body">
+                    <div className="profile-card-header">
+                      <span className="profile-card-icon">⚡</span>
+                      <span className="profile-card-name">Agressivo</span>
+                    </div>
+                    <p className="profile-card-desc">Velocidade maxima. Delays de 10-25s. Use com volumes baixos (&lt; 30 contatos) para seguranca.</p>
+                    <div className="profile-card-meta">
+                      <span className="profile-card-badge">
+                        ~{formatDuration(estimateCampaignDurationMs(contactCount, avgMsgLen, getProfileConfig('aggressive')))} p/ {contactCount} contatos
+                      </span>
+                    </div>
+                  </div>
+                  {humanizationProfile === 'aggressive' && <span className="profile-card-check">✓</span>}
+                </div>
+
+                <div
+                  className={`profile-card profile-card--custom ${humanizationProfile === 'custom' ? 'profile-card--selected' : ''}`}
+                  role="button" tabIndex={0}
+                  onClick={() => setHumanizationProfile('custom')}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setHumanizationProfile('custom') }}
+                >
+                  <div className="profile-card-accent" />
+                  <div className="profile-card-body">
+                    <div className="profile-card-header">
+                      <span className="profile-card-icon">🔧</span>
+                      <span className="profile-card-name">Personalizado</span>
+                    </div>
+                    <p className="profile-card-desc">Controle total. Ajuste delays, digitacao, leitura e rajadas exatamente como precisar.</p>
+                    <div className="profile-card-meta">
+                      <span className="profile-card-badge">
+                        {customConfig.minDelay || customConfig.maxDelay
+                          ? `~${formatDuration(estimateCampaignDurationMs(contactCount, avgMsgLen, humanizationConfig))} p/ ${contactCount} contatos`
+                          : 'Configure os parametros abaixo'}
+                      </span>
+                    </div>
+                  </div>
+                  {humanizationProfile === 'custom' && <span className="profile-card-check">✓</span>}
+                </div>
+              </div>
+
+              {humanizationProfile === 'custom' && (
+                <div className="custom-config-section">
+                  <h4 className="custom-config-title">Configuracao personalizada</h4>
+                  <div className="custom-config-grid">
+                    <label className="custom-config-field">
+                      <span>Delay minimo (s)</span>
+                      <input type="number" min={5} max={600} value={customConfig.minDelay ? customConfig.minDelay / 1000 : 25}
+                        onChange={(e) => setCustomConfig(prev => ({ ...prev, minDelay: Math.min(Number(e.target.value) * 1000, (prev.maxDelay || 90000)) }))}
+                        className="custom-config-input" />
+                    </label>
+                    <label className="custom-config-field">
+                      <span>Delay maximo (s)</span>
+                      <input type="number" min={5} max={600} value={customConfig.maxDelay ? customConfig.maxDelay / 1000 : 90}
+                        onChange={(e) => setCustomConfig(prev => ({ ...prev, maxDelay: Math.max(Number(e.target.value) * 1000, (prev.minDelay || 25000)) }))}
+                        className="custom-config-input" />
+                    </label>
+                    <label className="custom-config-field">
+                      <span>Digitacao (ms/caractere)</span>
+                      <input type="number" min={50} max={500} value={customConfig.typingSpeedMs ?? 150}
+                        onChange={(e) => setCustomConfig(prev => ({ ...prev, typingSpeedMs: Number(e.target.value) }))}
+                        className="custom-config-input" />
+                    </label>
+                    <label className="custom-config-field">
+                      <span>Msgs lidas antes</span>
+                      <input type="number" min={0} max={20} value={customConfig.readCount ?? 4}
+                        onChange={(e) => setCustomConfig(prev => ({ ...prev, readCount: Number(e.target.value) }))}
+                        className="custom-config-input" />
+                    </label>
+                  </div>
+                  <div className="custom-config-toggles">
+                    <label className="custom-config-toggle">
+                      <input type="checkbox" checked={customConfig.openChat !== false}
+                        onChange={(e) => setCustomConfig(prev => ({ ...prev, openChat: e.target.checked }))} />
+                      Abrir chat
+                    </label>
+                    <label className="custom-config-toggle">
+                      <input type="checkbox" checked={customConfig.readChat !== false}
+                        onChange={(e) => setCustomConfig(prev => ({ ...prev, readChat: e.target.checked }))} />
+                      Ler mensagens
+                    </label>
+                    <label className="custom-config-toggle">
+                      <input type="checkbox" checked={customConfig.burstMode === true}
+                        onChange={(e) => setCustomConfig(prev => ({ ...prev, burstMode: e.target.checked, burstSize: e.target.checked ? (prev.burstSize || 4) : 0, burstPauseMin: e.target.checked ? (prev.burstPauseMin || 300000) : 0, burstPauseMax: e.target.checked ? (prev.burstPauseMax || 480000) : 0 }))} />
+                      Modo rajada
+                    </label>
+                  </div>
+                </div>
+              )}
+
+              {contactCount > 200 && (
+                <div className="volume-banner volume-banner--warning">
+                  ⚠️ Volume alto ({contactCount} contatos). Recomendamos perfil Conservador e pausas ao longo do dia.
+                </div>
+              )}
+              {contactCount > 100 && contactCount <= 200 && (
+                <div className="volume-banner volume-banner--info">
+                  ℹ️ Volume moderado ({contactCount} contatos). Considere pausar a cada 50 envios.
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {step === 4 && (
+          <div className="wizard-step-content">
             <div className="wizard-review-card">
               <div className="wizard-review-row">
                 <span className="wizard-review-icon">👥</span>
@@ -718,6 +886,18 @@ export function CampaignWizard({ onBack, wppStatus }: CampaignWizardProps) {
               </div>
 
               <div className="wizard-review-row">
+                <span className="wizard-review-icon">🧬</span>
+                <div className="wizard-review-info">
+                  <span className="wizard-review-label">Perfil</span>
+                  <span className="wizard-review-value">
+                    {humanizationProfile === 'conservative' ? '🐢 Conservador' :
+                     humanizationProfile === 'balanced' ? '⚖️ Balanceado' :
+                     humanizationProfile === 'aggressive' ? '⚡ Agressivo' : '🔧 Personalizado'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="wizard-review-row">
                 <span className="wizard-review-icon">⏱️</span>
                 <div className="wizard-review-info">
                   <span className="wizard-review-label">Estimativa</span>
@@ -726,107 +906,14 @@ export function CampaignWizard({ onBack, wppStatus }: CampaignWizardProps) {
               </div>
             </div>
 
-            {mode === 'text' && (
-              <div className="wizard-section" style={{ marginTop: 16 }}>
-                <div className="wizard-section-title" style={{ marginBottom: 10, fontWeight: 600, fontSize: 13, color: '#9CA3AF' }}>
-                  Perfil de humanizacao
-                </div>
-                <div className="humanization-cards" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {(['conservative', 'balanced', 'aggressive', 'custom'] as HumanizationProfile[]).map((profile) => {
-                    const tempConfig = profile === 'custom' ? getProfileConfig('custom', customConfig) : getProfileConfig(profile)
-                    const dur = formatDuration(estimateCampaignDurationMs(contactCount, avgMsgLen, tempConfig))
-                    const isSelected = humanizationProfile === profile
-                    const labels: Record<string, string[]> = {
-                      conservative: ['🐢', 'Conservador', `~${dur}`],
-                      balanced: ['⚖️', 'Balanceado', `~${dur}`],
-                      aggressive: ['⚡', 'Agressivo', `~${dur}`],
-                      custom: ['🔧', 'Personalizado', `~${dur}`],
-                    }
-                    const [emoji, name, durLabel] = labels[profile] || ['?', profile, '']
-                    return (
-                      <div
-                        key={profile}
-                        role="button"
-                        tabIndex={0}
-                        className={`humanization-card${isSelected ? ' humanization-card--selected' : ''}`}
-                        onClick={() => setHumanizationProfile(profile)}
-                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setHumanizationProfile(profile) }}
-                        style={{
-                          flex: '1 1 calc(50% - 8px)',
-                          minWidth: 140,
-                          padding: '10px 12px',
-                          borderRadius: 10,
-                          border: `2px solid ${isSelected ? '#3B82F6' : '#374151'}`,
-                          background: isSelected ? 'rgba(59,130,246,0.12)' : '#1F2937',
-                          cursor: 'pointer',
-                          transition: 'border-color 0.2s, background 0.2s',
-                        }}
-                      >
-                        <div style={{ fontSize: 15, marginBottom: 2 }}>{emoji} {name}</div>
-                        <div style={{ fontSize: 11, color: '#9CA3AF' }}>{durLabel}</div>
-                      </div>
-                    )
-                  })}
-                </div>
-
-                {humanizationProfile === 'custom' && (
-                  <div className="custom-config" style={{ marginTop: 12, padding: 12, background: '#111827', borderRadius: 10, fontSize: 12 }}>
-                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                      <label style={{ flex: '1 1 45%' }}>
-                        <span style={{ color: '#9CA3AF' }}>Min delay (s)</span>
-                        <input type="number" min={5} max={600} value={customConfig.minDelay ? customConfig.minDelay / 1000 : 25}
-                          onChange={(e) => setCustomConfig(prev => ({ ...prev, minDelay: Math.min(Number(e.target.value) * 1000, prev.maxDelay ?? 90000) }))}
-                          style={{ width: '100%', marginTop: 3, padding: '4px 8px', borderRadius: 6, border: '1px solid #374151', background: '#1F2937', color: '#F9FAFB' }} />
-                      </label>
-                      <label style={{ flex: '1 1 45%' }}>
-                        <span style={{ color: '#9CA3AF' }}>Max delay (s)</span>
-                        <input type="number" min={5} max={600} value={customConfig.maxDelay ? customConfig.maxDelay / 1000 : 90}
-                          onChange={(e) => setCustomConfig(prev => ({ ...prev, maxDelay: Math.max(Number(e.target.value) * 1000, prev.minDelay ?? 25000) }))}
-                          style={{ width: '100%', marginTop: 3, padding: '4px 8px', borderRadius: 6, border: '1px solid #374151', background: '#1F2937', color: '#F9FAFB' }} />
-                      </label>
-                      <label style={{ flex: '1 1 45%' }}>
-                        <span style={{ color: '#9CA3AF' }}>Digitacao (ms/caractere)</span>
-                        <input type="number" min={50} max={500} value={customConfig.typingSpeedMs ?? 150}
-                          onChange={(e) => setCustomConfig(prev => ({ ...prev, typingSpeedMs: Number(e.target.value) }))}
-                          style={{ width: '100%', marginTop: 3, padding: '4px 8px', borderRadius: 6, border: '1px solid #374151', background: '#1F2937', color: '#F9FAFB' }} />
-                      </label>
-                      <label style={{ flex: '1 1 45%' }}>
-                        <span style={{ color: '#9CA3AF' }}>Msgs lidas antes</span>
-                        <input type="number" min={0} max={20} value={customConfig.readCount ?? 4}
-                          onChange={(e) => setCustomConfig(prev => ({ ...prev, readCount: Number(e.target.value) }))}
-                          style={{ width: '100%', marginTop: 3, padding: '4px 8px', borderRadius: 6, border: '1px solid #374151', background: '#1F2937', color: '#F9FAFB' }} />
-                      </label>
-                    </div>
-                    <div style={{ display: 'flex', gap: 16, marginTop: 8, flexWrap: 'wrap' }}>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#D1D5DB' }}>
-                        <input type="checkbox" checked={customConfig.openChat !== false}
-                          onChange={(e) => setCustomConfig(prev => ({ ...prev, openChat: e.target.checked }))} />
-                        Abrir chat
-                      </label>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#D1D5DB' }}>
-                        <input type="checkbox" checked={customConfig.readChat !== false}
-                          onChange={(e) => setCustomConfig(prev => ({ ...prev, readChat: e.target.checked }))} />
-                        Ler ultimas msgs
-                      </label>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#D1D5DB' }}>
-                        <input type="checkbox" checked={customConfig.burstMode === true}
-                          onChange={(e) => setCustomConfig(prev => ({ ...prev, burstMode: e.target.checked, burstSize: e.target.checked ? (prev.burstSize || 4) : 0, burstPauseMin: e.target.checked ? (prev.burstPauseMin || 300000) : 0, burstPauseMax: e.target.checked ? (prev.burstPauseMax || 480000) : 0 }))} />
-                        Modo rajada
-                      </label>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
             {contactCount > 200 && (
-              <div className="volume-banner volume-banner--warning" style={{ marginTop: 12, padding: '10px 14px', borderRadius: 10, background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', fontSize: 12, color: '#FCD34D' }}>
+              <div className="volume-banner volume-banner--warning" style={{ marginTop: 12 }}>
                 ⚠️ Volume alto ({contactCount} contatos). Recomendamos perfil Conservador e pausas ao longo do dia.
               </div>
             )}
             {contactCount > 100 && contactCount <= 200 && (
-              <div className="volume-banner volume-banner--info" style={{ marginTop: 12, padding: '10px 14px', borderRadius: 10, background: 'rgba(59,130,246,0.12)', border: '1px solid rgba(59,130,246,0.25)', fontSize: 12, color: '#93C5FD' }}>
-                ℹ️ Volume moderado ({contactCount} contatos). Considere pausar a cada 50 envios por seguranca.
+              <div className="volume-banner volume-banner--info" style={{ marginTop: 12 }}>
+                ℹ️ Volume moderado ({contactCount} contatos). Considere pausar a cada 50 envios.
               </div>
             )}
 
@@ -855,12 +942,12 @@ export function CampaignWizard({ onBack, wppStatus }: CampaignWizardProps) {
               ← Voltar
             </button>
           )}
-          {step < 3 && (
+          {step < 4 && (
             <button
               type="button"
               className="wizard-nav-btn wizard-nav-btn--next"
               onClick={goNext}
-              disabled={step === 1 ? !canGoToMessage : !canGoToReview}
+              disabled={step === 1 ? !canGoToMessage : step === 2 ? !canGoToProfile : false}
             >
               Proximo: {STEP_LABELS[(step + 1) as WizardStep]} →
             </button>

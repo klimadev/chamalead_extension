@@ -2069,3 +2069,245 @@ body {
   color: var(--primary);
   background: var(--primary-soft);
 }
+
+/* ── Humanization Profile Step ── */
+
+.humanization-step {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.humanization-step-header {
+  text-align: center;
+  padding: 0 4px;
+}
+
+.humanization-step-title {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.humanization-step-desc {
+  margin: 0;
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.profile-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.profile-card {
+  display: flex;
+  align-items: stretch;
+  border-radius: 12px;
+  border: 2px solid var(--line);
+  background: var(--surface);
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+}
+
+.profile-card:hover {
+  border-color: #c7d2fe;
+  background: #fafafe;
+}
+
+.profile-card--selected {
+  border-color: #3B82F6;
+  background: linear-gradient(135deg, #eff6ff 0%, #fafafe 100%);
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.2), 0 2px 8px rgba(59, 130, 246, 0.1);
+}
+
+.profile-card--selected:hover {
+  background: linear-gradient(135deg, #eff6ff 0%, #fafafe 100%);
+}
+
+.profile-card-accent {
+  width: 4px;
+  flex-shrink: 0;
+  background: var(--line-strong);
+  transition: background 0.2s;
+}
+
+.profile-card--conservative .profile-card-accent { background: #10B981; }
+.profile-card--balanced .profile-card-accent { background: #3B82F6; }
+.profile-card--aggressive .profile-card-accent { background: #F97316; }
+.profile-card--custom .profile-card-accent { background: #8B5CF6; }
+
+.profile-card--selected .profile-card-accent {
+  background: #3B82F6;
+}
+
+.profile-card-body {
+  flex: 1;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.profile-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.profile-card-icon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.profile-card-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.profile-card-recommended {
+  font-size: 10px;
+  font-weight: 600;
+  color: #3B82F6;
+  background: #eff6ff;
+  padding: 2px 8px;
+  border-radius: 100px;
+  margin-left: auto;
+}
+
+.profile-card-desc {
+  margin: 0;
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.profile-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.profile-card-badge {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--surface-muted);
+  padding: 3px 10px;
+  border-radius: 100px;
+}
+
+.profile-card--selected .profile-card-badge {
+  color: #3B82F6;
+  background: #eff6ff;
+}
+
+.profile-card-check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 14px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #3B82F6;
+  background: #eff6ff;
+}
+
+/* ── Custom Config Section ── */
+
+.custom-config-section {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.custom-config-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.custom-config-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.custom-config-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.custom-config-field span {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.custom-config-input {
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface-soft);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.custom-config-input:focus {
+  border-color: #3B82F6;
+}
+
+.custom-config-toggles {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.custom-config-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.custom-config-toggle input {
+  accent-color: #3B82F6;
+}
+
+/* ── Volume Banners ── */
+
+.volume-banner {
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.volume-banner--warning {
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  color: #b45309;
+}
+
+.volume-banner--info {
+  background: #eff6ff;
+  border: 1px solid #93c5fd;
+  color: #1d4ed8;
+}
