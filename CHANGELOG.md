@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.5.2] - 2026-05-13
+### Added
+- Diagnostic logging in background to trace humanizationConfig flow (service worker console)
+
+### Changed
+- CampaignWizard and PopupPage now show live countdown to next message during active campaigns
+- StoredBulkSendState includes nextSendAt timestamp for countdown sync
+- BulkSendProgress, BackgroundState, and CampaignSummary types include nextSendAt
+
+### Fixed
+- Removed dangling GroupContactExtraction exports causing build failures
+
+## [0.5.1] - 2026-05-13
+### Fixed
+- CSV parser now correctly strips quotes from fields, preventing broken phone numbers when CSV contains quoted fields with internal commas
+
 ## [0.5.0] - 2026-05-13
 ### Added
 - Multi-layered WhatsApp message humanization: open chat, read messages, typing simulation before sending

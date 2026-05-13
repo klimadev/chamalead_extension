@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react'
 import { crx, type ManifestV3Export } from '@crxjs/vite-plugin'
 import { fileURLToPath, URL } from 'node:url'
 
-const VERSION = '0.5.1'
+const VERSION = '0.5.2'
 
 const manifest: ManifestV3Export = {
   manifest_version: 3,

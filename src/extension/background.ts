@@ -80,6 +80,7 @@ interface StoredBulkSendState {
   recipients?: CsvRecipient[]
   fallbackMessage?: string
   humanizationConfig?: HumanizationConfig
+  nextSendAt?: number
 }
 
 let burstCount = 0
@@ -236,6 +237,8 @@ async function processNextNumber(state: StoredBulkSendState): Promise<void> {
     return
   }
 
+  console.log('[ChamaLead:bg] processNextNumber humanizationConfig:', state.humanizationConfig ? `profile=${state.humanizationConfig.profile} minDelay=${state.humanizationConfig.minDelay}ms maxDelay=${state.humanizationConfig.maxDelay}ms` : 'UNDEFINED')
+
   const tab = await findWhatsAppTab()
   if (!tab?.id) {
     const updated = addLog(state, 'WhatsApp tab not found')
@@ -334,7 +337,12 @@ async function processNextNumber(state: StoredBulkSendState): Promise<void> {
   }
 
   const config = afterSend.humanizationConfig ?? state.humanizationConfig
+  const usingHumanized = !!config
   const delay = config ? getHumanizedDelay(afterSend, config) : getHumanizedFallbackDelay()
+
+  console.log(`[ChamaLead:bg] Delay: usingHumanized=${usingHumanized} delay=${(delay / 1000).toFixed(1)}s (${delay}ms)`, usingHumanized ? `burstCount=${burstCount} config.minDelay=${config.minDelay} config.maxDelay=${config.maxDelay}` : 'fallback 6-11s')
+
+  afterSend.nextSendAt = Date.now() + delay
   await setStoredState(addLog(afterSend, `Aguardando ${(delay / 1000).toFixed(1)}s...`))
 
   setTimeout(() => {
@@ -531,6 +539,7 @@ chrome.runtime.onMessage.addListener(
           logs: state.logs,
           humanizationConfig: state.humanizationConfig,
           messageType: state.messageType,
+          nextSendAt: state.nextSendAt,
         })
       })
       return true

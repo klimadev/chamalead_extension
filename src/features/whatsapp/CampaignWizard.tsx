@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from 'react'
+import { useState, useRef, useMemo, useEffect } from 'react'
 import { useBulkSend, formatPhoneNumber } from './useBulkSend'
 import type { BulkSendProgress } from './useBulkSend'
 import { extractPlaceholders, validatePlaceholders, type CsvRecipient } from './csv-messages'
@@ -162,6 +162,22 @@ export function CampaignWizard({ onBack, wppStatus }: CampaignWizardProps) {
 
   const [humanizationProfile, setHumanizationProfile] = useState<HumanizationProfile>('balanced')
   const [customConfig, setCustomConfig] = useState<Partial<HumanizationConfig>>({})
+  const [countdown, setCountdown] = useState('')
+
+  useEffect(() => {
+    if (!progress.nextSendAt || progress.status !== 'sending') return
+    const id = setInterval(() => {
+      const remaining = progress.nextSendAt! - Date.now()
+      if (remaining <= 0) {
+        setCountdown('')
+      } else {
+        const mins = Math.floor(remaining / 60000)
+        const secs = Math.floor((remaining % 60000) / 1000)
+        setCountdown(mins > 0 ? `${mins}m ${secs}s` : `${secs}s`)
+      }
+    }, 1000)
+    return () => clearInterval(id)
+  }, [progress.nextSendAt, progress.status])
 
   const humanizationConfig = useMemo(() => {
     if (humanizationProfile === 'custom') {
@@ -397,6 +413,29 @@ export function CampaignWizard({ onBack, wppStatus }: CampaignWizardProps) {
             <div className="wizard-status-icon">{phase === 'paused' ? '⏸️' : '⚡'}</div>
             <h2 className="wizard-status-title">{phase === 'paused' ? 'PAUSADA' : 'ENVIANDO...'}</h2>
             <ProgressBar prog={progress} />
+            {phase === 'sending' && progress.humanizationConfig && (
+              <div className="wizard-countdown" style={{
+                marginTop: 16,
+                padding: '10px 14px',
+                borderRadius: 10,
+                background: '#1F2937',
+                border: '1px solid #374151',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 10,
+                fontSize: 12,
+              }}>
+                <span style={{ color: '#9CA3AF' }}>
+                  Perfil: {progress.humanizationConfig.profile === 'conservative' ? '🐢 Conservador' : progress.humanizationConfig.profile === 'balanced' ? '⚖️ Balanceado' : progress.humanizationConfig.profile === 'aggressive' ? '⚡ Agressivo' : '🔧 Personalizado'}
+                </span>
+                {countdown && (
+                  <span style={{ color: '#FBBF24', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+                    Próx. msg em {countdown}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
           <div className="wizard-actions">
             {phase === 'paused' ? (

@@ -22,6 +22,8 @@ export interface BulkSendProgress {
   failed: number
   currentPhone: string | null
   status: 'idle' | 'sending' | 'paused' | 'completed' | 'error'
+  humanizationConfig?: HumanizationConfig
+  nextSendAt?: number
 }
 
 export interface BulkSendOptions {
@@ -39,6 +41,8 @@ interface BackgroundState {
   currentPhone: string | null
   status: 'idle' | 'sending' | 'paused' | 'completed' | 'error'
   logs: string[]
+  humanizationConfig?: HumanizationConfig
+  nextSendAt?: number
 }
 
 const POLL_INTERVAL = 2000
@@ -89,6 +93,8 @@ export function useBulkSend() {
           failed: state.failed,
           currentPhone: state.currentPhone,
           status: state.status,
+          humanizationConfig: state.humanizationConfig,
+          nextSendAt: state.nextSendAt,
         })
         setLogs(state.logs)
         if (state.status === 'completed' || state.status === 'error') {
@@ -109,6 +115,8 @@ export function useBulkSend() {
           failed: state.failed,
           currentPhone: state.currentPhone,
           status: state.status,
+          humanizationConfig: state.humanizationConfig,
+          nextSendAt: state.nextSendAt,
         })
         setLogs(state.logs)
         if (state.status === 'sending' || state.status === 'paused') {

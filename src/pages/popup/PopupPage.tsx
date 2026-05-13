@@ -12,6 +12,7 @@ interface CampaignSummary {
   sent: number
   failed: number
   status: string
+  nextSendAt?: number
 }
 
 function openWhatsAppWeb() {
@@ -74,6 +75,23 @@ function HomeDashboard({ siteLabel, statusChip, wppReady, onStartCampaign, onVie
     : 0
   const remainder = campaignSummary ? campaignSummary.total - campaignSummary.sent - campaignSummary.failed : 0
 
+  const [homeCountdown, setHomeCountdown] = useState('')
+
+  useEffect(() => {
+    if (!campaignSummary?.nextSendAt || campaignSummary.status !== 'sending') return
+    const id = setInterval(() => {
+      const remaining = campaignSummary.nextSendAt! - Date.now()
+      if (remaining <= 0) {
+        setHomeCountdown('')
+      } else {
+        const mins = Math.floor(remaining / 60000)
+        const secs = Math.floor((remaining % 60000) / 1000)
+        setHomeCountdown(mins > 0 ? `${mins}m ${secs}s` : `${secs}s`)
+      }
+    }, 1000)
+    return () => clearInterval(id)
+  }, [campaignSummary?.nextSendAt, campaignSummary?.status])
+
   return (
     <main className="page" role="main" aria-label="ChamaLead">
       <div className="stack">
@@ -99,6 +117,11 @@ function HomeDashboard({ siteLabel, statusChip, wppReady, onStartCampaign, onVie
               <p className="hero-description" style={{ marginTop: 8 }}>
                 {campaignSummary.sent}/{campaignSummary.total} enviados · {campaignSummary.failed} falhas · {remainder} restantes
               </p>
+              {homeCountdown && (
+                <p className="hero-description" style={{ marginTop: 4, color: '#FBBF24', fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>
+                  Proxima mensagem em {homeCountdown}
+                </p>
+              )}
               <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                 <button type="button" className="button hero-cta" onClick={onStartCampaign}>
                   👁️ Ver campanha
@@ -233,6 +256,7 @@ export function PopupPage() {
         sent: response.sent ?? 0,
         failed: response.failed ?? 0,
         status: response.status ?? 'idle',
+        nextSendAt: typeof response.nextSendAt === 'number' ? response.nextSendAt : undefined,
       })
     })
   }, [])
