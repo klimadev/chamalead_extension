@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { CampaignWizard, useWppStatus, useActiveSiteContext, useInstagramProfile, InstagramProfileDetails, GroupContactExtraction } from '@/features'
+import { CampaignWizard, useWppStatus, useActiveSiteContext, useInstagramProfile, InstagramProfileDetails } from '@/features'
 import { Card } from '@/ui'
 import { UpdatesTab } from './UpdatesTab'
 
 declare const EXT_VERSION: string
 
-type AppView = 'home' | 'campaign' | 'about' | 'updates' | 'group-extraction'
+type AppView = 'home' | 'campaign' | 'about' | 'updates'
 
 interface CampaignSummary {
   total: number
@@ -60,14 +60,13 @@ function SiteUnsupported({ onOpenWhatsApp }: { onOpenWhatsApp: () => void }) {
   )
 }
 
-function HomeDashboard({ siteLabel, statusChip, wppReady, onStartCampaign, onViewAbout, onViewUpdates, onStartGroupExtraction, campaignSummary }: {
+function HomeDashboard({ siteLabel, statusChip, wppReady, onStartCampaign, onViewAbout, onViewUpdates, campaignSummary }: {
   siteLabel: string
   statusChip: { text: string; variant: string }
   wppReady: boolean
   onStartCampaign: () => void
   onViewAbout: () => void
   onViewUpdates: () => void
-  onStartGroupExtraction: () => void
   campaignSummary: CampaignSummary | null
 }) {
   const percent = campaignSummary && campaignSummary.total > 0
@@ -139,24 +138,6 @@ function HomeDashboard({ siteLabel, statusChip, wppReady, onStartCampaign, onVie
             </div>
           </Card>
         )}
-
-        <Card className="hero-card">
-          <div className="hero-content">
-            <div className="hero-icon">📇</div>
-            <h2 className="hero-title">Extrair Contatos</h2>
-            <p className="hero-description">
-              Exporte contatos dos seus grupos em CSV.
-            </p>
-            <button
-              type="button"
-              className="button hero-cta"
-              onClick={onStartGroupExtraction}
-              disabled={!wppReady}
-            >
-              {wppReady ? '📂 Abrir extrator' : '🔒 Conecte ao WhatsApp'}
-            </button>
-          </div>
-        </Card>
 
         <nav className="home-footer" aria-label="Links">
           <button type="button" className="home-footer-link" onClick={onViewUpdates}>
@@ -355,14 +336,6 @@ export function PopupPage() {
     return null
   }
 
-  if (view === 'group-extraction') {
-    if (siteContext.site?.id === 'whatsapp') {
-      return <GroupContactExtraction onBack={() => setView('home')} wppStatus={wppStatus} />
-    }
-    setView('home')
-    return null
-  }
-
   if (view === 'about') {
     return <AboutView onBack={() => setView('home')} />
   }
@@ -399,7 +372,6 @@ export function PopupPage() {
       onStartCampaign={() => setView('campaign')}
       onViewAbout={() => setView('about')}
       onViewUpdates={() => setView('updates')}
-      onStartGroupExtraction={() => setView('group-extraction')}
       campaignSummary={campaignSummary}
     />
   )

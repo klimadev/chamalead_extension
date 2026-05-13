@@ -5,9 +5,6 @@ export type { WppChat } from './useWppChats'
 export { useBulkSend, formatPhoneNumber } from './useBulkSend'
 export type { BulkSendProgress } from './useBulkSend'
 export { CampaignWizard } from './CampaignWizard'
-export { useGroupExtraction } from './useGroupExtraction'
-export type { WppGroup, ParticipantRow } from './useGroupExtraction'
-export { GroupContactExtraction } from './GroupContactExtraction'
 export {
   extractPlaceholders,
   renderMessage,
