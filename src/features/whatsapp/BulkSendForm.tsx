@@ -47,6 +47,7 @@ function parseCSV(text: string): CsvData {
         continue
       }
       inQuotes = !inQuotes
+      currentLine += char
     } else if (char === '\n' && !inQuotes) {
       if (currentLine.trim().length > 0) {
         lines.push(currentLine)
