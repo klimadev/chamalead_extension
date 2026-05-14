@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.5.4] - 2026-05-13
+### Fixed
+- Added `markIsRead` (blue ticks/read receipt) to humanized send pipeline
+- Added diagnostic console logging in page bridge to trace humanization pipeline execution
+
 ## [0.5.3] - 2026-05-13
 ### Changed
 - Humanization profile selection is now its own wizard step (step 3: Perfil) with visually improved cards

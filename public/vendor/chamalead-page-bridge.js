@@ -511,6 +511,15 @@
   }
 
   async function sendMessageHumanized(phoneNumber, message, humanization) {
+    console.log('[ChamaLead:bridge] sendMessageHumanized START', phoneNumber, 'config:', JSON.stringify({
+      openChat: humanization.openChat,
+      readChat: humanization.readChat,
+      readCount: humanization.readCount,
+      typingSpeedMs: humanization.typingSpeedMs,
+      minDelay: humanization.minDelay,
+      maxDelay: humanization.maxDelay,
+      burstMode: humanization.burstMode,
+    }))
     const wpp = globalThis.WPP
     const status = getWppStatus()
 
@@ -535,6 +544,16 @@
       }
 
       if (humanization.readChat && humanization.readCount > 0) {
+        await randomMicroDelay(300, 700)
+        try {
+          const markReadMethod = wpp?.chat?.markIsRead
+          if (markReadMethod) {
+            await markReadMethod.call(wpp.chat, chatId)
+          }
+        } catch (_e) {
+          console.log('[ChamaLead:bridge] markIsRead failed, continuing', _e)
+        }
+        await randomMicroDelay(500, 1200)
         try {
           const getMsgMethod = wpp?.chat?.getMessages
           if (getMsgMethod) {
