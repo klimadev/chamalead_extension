@@ -10,5 +10,5 @@ export type {
   InstagramProfileMessageResponse,
   InstagramProfileState,
 } from './instagram'
-export { useWppChats, useWppStatus, useBulkSend, formatPhoneNumber, CampaignWizard, getProfileConfig, estimateCampaignDurationMs, formatDuration, CONSERVATIVE_CONFIG, BALANCED_CONFIG, AGGRESSIVE_CONFIG } from './whatsapp'
-export type { WppChat, WppStatus, BulkSendProgress, HumanizationProfile, HumanizationConfig } from './whatsapp'
+export { useWppChats, useWppStatus, useBulkSend, formatPhoneNumber, CampaignWizard, GroupContactExtraction, useGroupExtraction, getProfileConfig, estimateCampaignDurationMs, formatDuration, CONSERVATIVE_CONFIG, BALANCED_CONFIG, AGGRESSIVE_CONFIG } from './whatsapp'
+export type { WppChat, WppStatus, BulkSendProgress, WppGroup, ParticipantRow, HumanizationProfile, HumanizationConfig } from './whatsapp'

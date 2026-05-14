@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { CampaignWizard, useWppStatus, useActiveSiteContext, useInstagramProfile, InstagramProfileDetails } from '@/features'
+import { CampaignWizard, GroupContactExtraction, useWppStatus, useActiveSiteContext, useInstagramProfile, InstagramProfileDetails } from '@/features'
 import { Card } from '@/ui'
 import { UpdatesTab } from './UpdatesTab'
 
 declare const EXT_VERSION: string
 
-type AppView = 'home' | 'campaign' | 'about' | 'updates'
+type AppView = 'home' | 'campaign' | 'about' | 'updates' | 'group-extraction'
 
 interface CampaignSummary {
   total: number
@@ -61,13 +61,14 @@ function SiteUnsupported({ onOpenWhatsApp }: { onOpenWhatsApp: () => void }) {
   )
 }
 
-function HomeDashboard({ siteLabel, statusChip, wppReady, onStartCampaign, onViewAbout, onViewUpdates, campaignSummary }: {
+function HomeDashboard({ siteLabel, statusChip, wppReady, onStartCampaign, onViewAbout, onViewUpdates, onViewExtraction, campaignSummary }: {
   siteLabel: string
   statusChip: { text: string; variant: string }
   wppReady: boolean
   onStartCampaign: () => void
   onViewAbout: () => void
   onViewUpdates: () => void
+  onViewExtraction: () => void
   campaignSummary: CampaignSummary | null
 }) {
   const percent = campaignSummary && campaignSummary.total > 0
@@ -163,6 +164,9 @@ function HomeDashboard({ siteLabel, statusChip, wppReady, onStartCampaign, onVie
         )}
 
         <nav className="home-footer" aria-label="Links">
+          <button type="button" className="home-footer-link" onClick={onViewExtraction}>
+            📊 Extrair Contatos
+          </button>
           <button type="button" className="home-footer-link" onClick={onViewUpdates}>
             📜 Atualizacoes
           </button>
@@ -368,6 +372,14 @@ export function PopupPage() {
     return <UpdatesView onBack={() => setView('home')} />
   }
 
+  if (view === 'group-extraction') {
+    if (siteContext.site?.id === 'whatsapp') {
+      return <GroupContactExtraction wppStatus={wppStatus} onBack={() => setView('home')} />
+    }
+    setView('home')
+    return null
+  }
+
   if (siteContext.site?.id === 'instagram') {
     return (
       <main className="page" role="main" style={{ width: 380 }}>
@@ -396,6 +408,7 @@ export function PopupPage() {
       onStartCampaign={() => setView('campaign')}
       onViewAbout={() => setView('about')}
       onViewUpdates={() => setView('updates')}
+      onViewExtraction={() => setView('group-extraction')}
       campaignSummary={campaignSummary}
     />
   )

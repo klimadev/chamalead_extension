@@ -94,7 +94,7 @@ export function useWppChats(status: WppStatus) {
     return {
       chats: [],
       total: 0,
-      limitedTo: 100,
+      limitedTo: 500,
       error: null,
       lastUpdatedAt: null,
     }

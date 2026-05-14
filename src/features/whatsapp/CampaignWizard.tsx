@@ -5,6 +5,7 @@ import { extractPlaceholders, validatePlaceholders, type CsvRecipient } from './
 import { convertToOggOpus, convertWithMediaRecorder, fileToRawDataUrl, convertAudioWithFallback } from './audio-converter'
 import type { WppStatus } from './useWppStatus'
 import { getProfileConfig, formatDuration, estimateCampaignDurationMs, type HumanizationProfile, type HumanizationConfig } from './humanization'
+import { useWppChats } from './useWppChats'
 
 import { Button } from '@/ui'
 
@@ -149,6 +150,10 @@ export function CampaignWizard({ onBack, wppStatus }: CampaignWizardProps) {
 
   const { progress, logs, loading, startBulkSend, startBulkSendAudio, pauseBulkSend, resumeBulkSend, resetBulkSend } = useBulkSend()
 
+  const { chats } = useWppChats(wppStatus)
+
+  const [cleanResult, setCleanResult] = useState<{ dupesRemoved: number; chatRemoved: number; remaining: number } | null>(null)
+
   const phase: CampaignPhase = progress.status === 'sending' ? 'sending'
     : progress.status === 'paused' ? 'paused'
     : progress.status === 'completed' ? 'completed'
@@ -195,6 +200,32 @@ export function CampaignWizard({ onBack, wppStatus }: CampaignWizardProps) {
 
   const hasValidContacts = contactCount > 0 || previewNumbers.length > 0
   const canGoToMessage = hasValidContacts && csvError === ''
+
+  const handleCleanList = () => {
+    const inputItems = numbers.split(',').map(item => item.trim()).filter(Boolean)
+    if (inputItems.length === 0) return
+
+    const seen = new Map<string, string>()
+    for (const item of inputItems) {
+      const formatted = formatPhoneNumber(item)
+      if (formatted && !seen.has(formatted)) {
+        seen.set(formatted, item)
+      }
+    }
+    const unique = [...seen.values()]
+    const totalBeforeDedup = inputItems.length
+    const dupesRemoved = totalBeforeDedup - unique.length
+
+    const individualChats = chats.filter(c => !c.isGroup && !c.isNewsletter)
+    const chatPhoneSet = new Set(individualChats.map(c => c.id.replace(/@[c]\.us$/, '')))
+
+    const clean = unique.filter(item => !chatPhoneSet.has(formatPhoneNumber(item)))
+    const chatRemoved = unique.length - clean.length
+    const remaining = clean.length
+
+    setNumbers(clean.join(', '))
+    setCleanResult({ dupesRemoved, chatRemoved, remaining })
+  }
 
   const updatePreview = (col: string, data?: CsvData) => {
     setSelectedColumn(col)
@@ -578,7 +609,7 @@ export function CampaignWizard({ onBack, wppStatus }: CampaignWizardProps) {
                 className="form-textarea"
                 placeholder="5511999999999, 5511888888888, ..."
                 value={numbers}
-                onChange={(e) => setNumbers(e.target.value)}
+                onChange={(e) => { setNumbers(e.target.value); setCleanResult(null) }}
                 rows={3}
               />
             </div>
@@ -586,6 +617,33 @@ export function CampaignWizard({ onBack, wppStatus }: CampaignWizardProps) {
             {contactCount > 0 && (
               <div className="wizard-summary-bar">
                 ✓ {contactCount} numeros adicionados
+              </div>
+            )}
+
+            {wppStatus.isAuthenticated && contactCount > 0 && (
+              <button type="button" className="button button--soft" onClick={handleCleanList} style={{ width: '100%' }}>
+                🧹 Limpar lista
+              </button>
+            )}
+
+            {cleanResult && (
+              <div className="wizard-summary-bar" style={{
+                background: cleanResult.remaining === 0 ? 'var(--danger-bg)' : cleanResult.chatRemoved > 0 || cleanResult.dupesRemoved > 0 ? '#fef9c3' : 'var(--success-bg)',
+                borderColor: cleanResult.remaining === 0 ? '#fecaca' : cleanResult.chatRemoved > 0 || cleanResult.dupesRemoved > 0 ? '#fde68a' : '#bbf7d0',
+                color: cleanResult.remaining === 0 ? 'var(--danger-fg)' : cleanResult.chatRemoved > 0 || cleanResult.dupesRemoved > 0 ? '#92400e' : 'var(--success-fg)',
+              }}>
+                {cleanResult.remaining === 0 ? (
+                  '⚠️ Todos os numeros foram removidos. A lista esta vazia.'
+                ) : cleanResult.chatRemoved === 0 && cleanResult.dupesRemoved === 0 ? (
+                  '✅ Nenhum numero removido. Lista ja esta limpa.'
+                ) : (
+                  <>
+                    {cleanResult.dupesRemoved > 0 && `${cleanResult.dupesRemoved} duplicado(s) removido(s)`}
+                    {cleanResult.dupesRemoved > 0 && cleanResult.chatRemoved > 0 && ', '}
+                    {cleanResult.chatRemoved > 0 && `${cleanResult.chatRemoved} ja possuem conversa (ultimos 500 chats)`}
+                    {`, ${cleanResult.remaining} prontos para envio`}
+                  </>
+                )}
               </div>
             )}
           </div>
