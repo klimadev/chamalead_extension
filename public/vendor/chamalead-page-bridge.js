@@ -152,14 +152,19 @@
     const rows = []
     for (const p of models) {
       const rawId = String(p?.id?._serialized || p?.id || '')
-      if (!rawId || rawId.includes('@lid')) continue
+      if (!rawId) continue
+
+      const isAdmin = p.isAdmin === true || p.isSuperAdmin === true
+
+      if (rawId.includes('@lid')) {
+        rows.push({ phone: rawId, is_admin: isAdmin, type: 'lid' })
+        continue
+      }
 
       const phone = rawId.replace('@c.us', '')
       if (!phone || !/^\d+$/.test(phone)) continue
 
-      const isAdmin = p.isAdmin === true || p.isSuperAdmin === true
-
-      rows.push({ phone, is_admin: isAdmin })
+      rows.push({ phone, is_admin: isAdmin, type: 'c.us' })
     }
     return rows
   }
@@ -191,7 +196,10 @@
               rawCount: models.length,
             })
             const rows = extractParticipantRows(models)
-            return { participants: rows }
+            if (rows.length > 0) {
+              return { participants: rows }
+            }
+            console.log('[ChamaLead:bridge] Chat list returned 0 valid rows, falling back to getParticipants')
           }
         } catch (e) {
           console.log('[ChamaLead:bridge] Chat list lookup failed, falling back', e)

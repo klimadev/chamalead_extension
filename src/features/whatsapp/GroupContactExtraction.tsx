@@ -21,6 +21,8 @@ export function GroupContactExtraction({ wppStatus, onBack }: Props) {
   const [phase, setPhase] = useState<'loading' | 'select' | 'extracting' | 'done'>('loading')
   const [summary, setSummary] = useState<{
     totalContacts: number
+    totalCus: number
+    totalLid: number
     groupsProcessed: number
     groupsSkipped: SkippedGroup[]
   } | null>(null)
@@ -90,8 +92,12 @@ export function GroupContactExtraction({ wppStatus, onBack }: Props) {
     }
 
     setResultRows(rows)
+    const cuCount = rows.filter((r) => r.type === 'c.us').length
+    const lidCount = rows.filter((r) => r.type === 'lid').length
     setSummary({
       totalContacts: rows.length,
+      totalCus: cuCount,
+      totalLid: lidCount,
       groupsProcessed: selectedArray.length - skipped.length,
       groupsSkipped: skipped,
     })
@@ -99,12 +105,12 @@ export function GroupContactExtraction({ wppStatus, onBack }: Props) {
   }, [selectedIds, extractParticipants, groups])
 
   const handleDownload = useCallback(() => {
-    const header = 'group_name,phone,is_admin'
+    const header = 'group_name,phone,is_admin,type'
     const lines = resultRows.map((row) => {
       const name = row.group_name.includes(',') || row.group_name.includes('"')
         ? `"${row.group_name.replace(/"/g, '""')}"`
         : row.group_name
-      return `${name},${row.phone},${row.is_admin}`
+      return `${name},${row.phone},${row.is_admin},${row.type}`
     })
     const csv = [header, ...lines].join('\n')
 
@@ -186,6 +192,9 @@ export function GroupContactExtraction({ wppStatus, onBack }: Props) {
           <Card title="Extracao concluida">
             <div style={{ padding: '8px 0' }}>
               <p><strong>{summary.totalContacts}</strong> contatos extraidos</p>
+              <p style={{ fontSize: '0.85rem', color: '#9CA3AF' }}>
+                {summary.totalCus} telefone{summary.totalCus !== 1 ? 's' : ''} · {summary.totalLid} ID{summary.totalLid !== 1 ? 's' : ''} interno{summary.totalLid !== 1 ? 's' : ''} (@lid)
+              </p>
               <p>{summary.groupsProcessed} grupos processados</p>
               {summary.groupsSkipped.length > 0 && (
                 <div style={{ marginTop: 8 }}>

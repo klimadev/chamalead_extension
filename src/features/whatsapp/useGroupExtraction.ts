@@ -9,6 +9,7 @@ export interface ParticipantRow {
   group_name: string
   phone: string
   is_admin: boolean
+  type: string
 }
 
 export function useGroupExtraction() {
@@ -74,10 +75,11 @@ export function useGroupExtraction() {
         console.log('[ChamaLead] Participants received', { groupId, count: participants.length })
 
         const rows: ParticipantRow[] = participants.map(
-          (p: { phone?: string; is_admin?: boolean }) => ({
+          (p: { phone?: string; is_admin?: boolean; type?: string }) => ({
             group_name: groupName,
             phone: String(p.phone || ''),
             is_admin: p.is_admin === true,
+            type: p.type || 'c.us',
           }),
         )
 
