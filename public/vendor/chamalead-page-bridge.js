@@ -148,6 +148,22 @@
       })
   }
 
+  function extractParticipantRows(models) {
+    const rows = []
+    for (const p of models) {
+      const rawId = String(p?.id?._serialized || p?.id || '')
+      if (!rawId || rawId.includes('@lid')) continue
+
+      const phone = rawId.replace('@c.us', '')
+      if (!phone || !/^\d+$/.test(phone)) continue
+
+      const isAdmin = p.isAdmin === true || p.isSuperAdmin === true
+
+      rows.push({ phone, is_admin: isAdmin })
+    }
+    return rows
+  }
+
   function getParticipants(groupId) {
     const wpp = globalThis.WPP
     const status = getWppStatus()
@@ -156,39 +172,51 @@
       return { participants: [], error: 'WhatsApp not ready' }
     }
 
-    if (!wpp?.group?.getParticipants) {
-      return { participants: [], error: 'WPP.group.getParticipants not available' }
-    }
+    return Promise.resolve().then(async () => {
+      const listMethod = wpp?.chat?.list
+      if (listMethod) {
+        try {
+          const allChats = await listMethod.call(wpp.chat, { count: 500 })
+          const group = (Array.isArray(allChats) ? allChats : []).find(
+            (c) => c.isGroup && String(c?.id?._serialized || c?.id || '') === groupId
+          )
+          if (group?.groupMetadata?.participants) {
+            const parts = group.groupMetadata.participants
+            const models = typeof parts.getModelsArray === 'function'
+              ? parts.getModelsArray()
+              : (Array.isArray(parts) ? parts : [])
 
-    return Promise.resolve(wpp.group.getParticipants(groupId))
-      .then((participants) => {
-        const models = Array.isArray(participants)
-          ? participants
-          : (participants?.getModelsArray ? participants.getModelsArray() : [])
-
-        const rows = []
-        for (const p of models) {
-          const rawId = String(p?.id?._serialized || p?.id || '')
-          if (!rawId || rawId.includes('@lid')) continue
-
-          const phone = rawId.replace('@c.us', '')
-          if (!phone || !/^\d+$/.test(phone)) continue
-
-          const isAdmin = p.isAdmin === true || p.isSuperAdmin === true
-
-          rows.push({ phone, is_admin: isAdmin })
+            console.log('[ChamaLead:bridge] Participants from chat list', {
+              groupId,
+              rawCount: models.length,
+            })
+            const rows = extractParticipantRows(models)
+            return { participants: rows }
+          }
+        } catch (e) {
+          console.log('[ChamaLead:bridge] Chat list lookup failed, falling back', e)
         }
+      }
 
-        console.log('[ChamaLead:bridge] Participants fetched', {
-          groupId,
-          total: rows.length,
-        })
-        return { participants: rows }
+      if (!wpp?.group?.getParticipants) {
+        return { participants: [], error: 'WPP.group.getParticipants not available' }
+      }
+
+      const participants = await wpp.group.getParticipants(groupId)
+      const models = Array.isArray(participants)
+        ? participants
+        : (participants?.getModelsArray ? participants.getModelsArray() : [])
+
+      console.log('[ChamaLead:bridge] Participants from getParticipants', {
+        groupId,
+        rawCount: models.length,
       })
-      .catch((error) => {
-        console.log('[ChamaLead:bridge] Failed to fetch participants', error)
-        return { participants: [], error: String(error) }
-      })
+      const rows = extractParticipantRows(models)
+      return { participants: rows }
+    }).catch((error) => {
+      console.log('[ChamaLead:bridge] Failed to fetch participants', error)
+      return { participants: [], error: String(error) }
+    })
   }
 
   async function sendMessage(phoneNumber, message) {

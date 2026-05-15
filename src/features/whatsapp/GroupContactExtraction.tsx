@@ -83,7 +83,7 @@ export function GroupContactExtraction({ wppStatus, onBack }: Props) {
       } else if (result.participants.length === 0) {
         skipped.push({
           name: groups.find((g) => g.id === groupId)?.name || groupId,
-          reason: '0 participantes',
+          reason: '0 participantes — abra o grupo no WhatsApp antes de extrair',
         })
       }
       rows.push(...result.participants)
