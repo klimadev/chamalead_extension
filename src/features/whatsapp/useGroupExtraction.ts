@@ -8,8 +8,10 @@ export interface WppGroup {
 export interface ParticipantRow {
   group_name: string
   phone: string
+  name: string
   is_admin: boolean
   type: string
+  lid: string
 }
 
 export function useGroupExtraction() {
@@ -75,11 +77,13 @@ export function useGroupExtraction() {
         console.log('[ChamaLead] Participants received', { groupId, count: participants.length })
 
         const rows: ParticipantRow[] = participants.map(
-          (p: { phone?: string; is_admin?: boolean; type?: string }) => ({
+          (p: { phone?: string; name?: string; is_admin?: boolean; type?: string; lid?: string }) => ({
             group_name: groupName,
             phone: String(p.phone || ''),
+            name: String(p.name || ''),
             is_admin: p.is_admin === true,
             type: p.type || 'c.us',
+            lid: String(p.lid || ''),
           }),
         )
 

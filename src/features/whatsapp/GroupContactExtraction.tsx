@@ -23,6 +23,7 @@ export function GroupContactExtraction({ wppStatus, onBack }: Props) {
     totalContacts: number
     totalCus: number
     totalLid: number
+    totalNames: number
     groupsProcessed: number
     groupsSkipped: SkippedGroup[]
   } | null>(null)
@@ -94,10 +95,12 @@ export function GroupContactExtraction({ wppStatus, onBack }: Props) {
     setResultRows(rows)
     const cuCount = rows.filter((r) => r.type === 'c.us').length
     const lidCount = rows.filter((r) => r.type === 'lid').length
+    const nameCount = rows.filter((r) => r.name.length > 0).length
     setSummary({
       totalContacts: rows.length,
       totalCus: cuCount,
       totalLid: lidCount,
+      totalNames: nameCount,
       groupsProcessed: selectedArray.length - skipped.length,
       groupsSkipped: skipped,
     })
@@ -105,12 +108,15 @@ export function GroupContactExtraction({ wppStatus, onBack }: Props) {
   }, [selectedIds, extractParticipants, groups])
 
   const handleDownload = useCallback(() => {
-    const header = 'group_name,phone,is_admin,type'
+    const header = 'group_name,phone,name,is_admin,type,lid'
     const lines = resultRows.map((row) => {
-      const name = row.group_name.includes(',') || row.group_name.includes('"')
+      const gName = row.group_name.includes(',') || row.group_name.includes('"')
         ? `"${row.group_name.replace(/"/g, '""')}"`
         : row.group_name
-      return `${name},${row.phone},${row.is_admin},${row.type}`
+      const pName = row.name.includes(',') || row.name.includes('"')
+        ? `"${row.name.replace(/"/g, '""')}"`
+        : row.name
+      return `${gName},${row.phone},${pName},${row.is_admin},${row.type},${row.lid}`
     })
     const csv = [header, ...lines].join('\n')
 
@@ -194,6 +200,9 @@ export function GroupContactExtraction({ wppStatus, onBack }: Props) {
               <p><strong>{summary.totalContacts}</strong> contatos extraidos</p>
               <p style={{ fontSize: '0.85rem', color: '#9CA3AF' }}>
                 {summary.totalCus} telefone{summary.totalCus !== 1 ? 's' : ''} · {summary.totalLid} ID{summary.totalLid !== 1 ? 's' : ''} interno{summary.totalLid !== 1 ? 's' : ''} (@lid)
+              </p>
+              <p style={{ fontSize: '0.85rem', color: '#9CA3AF' }}>
+                {summary.totalNames} nome{summary.totalNames !== 1 ? 's' : ''} resolvido{summary.totalNames !== 1 ? 's' : ''}
               </p>
               <p>{summary.groupsProcessed} grupos processados</p>
               {summary.groupsSkipped.length > 0 && (

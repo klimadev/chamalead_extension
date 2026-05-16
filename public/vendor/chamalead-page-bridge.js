@@ -154,17 +154,26 @@
       const rawId = String(p?.id?._serialized || p?.id || '')
       if (!rawId) continue
 
+      const contact = p.__x_contact || p.contact || {}
       const isAdmin = p.isAdmin === true || p.isSuperAdmin === true
 
-      if (rawId.includes('@lid')) {
-        rows.push({ phone: rawId, is_admin: isAdmin, type: 'lid' })
-        continue
+      const name = String(contact.name || contact.pushname || contact.shortName || '')
+
+      let phone = ''
+      if (contact.__x_phoneNumber && contact.__x_phoneNumber.user) {
+        phone = String(contact.__x_phoneNumber.user)
+      } else if (contact.phoneNumber) {
+        phone = String(contact.phoneNumber)
+      } else if (contact.id && contact.id.server === 'c.us') {
+        phone = String(contact.id.user)
+      } else if (rawId.includes('@c.us')) {
+        phone = rawId.replace('@c.us', '')
       }
 
-      const phone = rawId.replace('@c.us', '')
-      if (!phone || !/^\d+$/.test(phone)) continue
+      const type = rawId.includes('@lid') ? 'lid' : 'c.us'
+      const lid = rawId.includes('@lid') ? rawId : ''
 
-      rows.push({ phone, is_admin: isAdmin, type: 'c.us' })
+      rows.push({ phone, name, is_admin: isAdmin, type, lid })
     }
     return rows
   }
