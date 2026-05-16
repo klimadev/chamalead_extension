@@ -28,3 +28,5 @@ export {
   type HumanizationProfile,
   type HumanizationConfig,
 } from './humanization'
+export { useAnalytics } from './useAnalytics'
+export { AnalyticsDashboard } from './AnalyticsDashboard'

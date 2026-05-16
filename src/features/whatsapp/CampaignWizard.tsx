@@ -217,7 +217,7 @@ export function CampaignWizard({ onBack, wppStatus }: CampaignWizardProps) {
     const dupesRemoved = totalBeforeDedup - unique.length
 
     const individualChats = chats.filter(c => !c.isGroup && !c.isNewsletter)
-    const chatPhoneSet = new Set(individualChats.map(c => c.id.replace(/@[c]\.us$/, '')))
+    const chatPhoneSet = new Set(individualChats.map(c => c.phone).filter(Boolean))
 
     const clean = unique.filter(item => !chatPhoneSet.has(formatPhoneNumber(item)))
     const chatRemoved = unique.length - clean.length

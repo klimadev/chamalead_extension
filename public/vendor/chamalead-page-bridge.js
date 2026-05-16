@@ -13,6 +13,8 @@
   const GROUPS_RESPONSE_TYPE = 'CHAMALEAD_PAGE_WPP_GROUPS'
   const PARTICIPANTS_REQUEST_TYPE = 'CHAMALEAD_PAGE_GET_WPP_PARTICIPANTS'
   const PARTICIPANTS_RESPONSE_TYPE = 'CHAMALEAD_PAGE_WPP_PARTICIPANTS'
+  const PROFILE_REQUEST_TYPE = 'CHAMALEAD_PAGE_GET_PROFILE'
+  const PROFILE_RESPONSE_TYPE = 'CHAMALEAD_PAGE_WPP_PROFILE'
   const CHATS_LIMIT = 500
 
   function getWppStatus() {
@@ -38,6 +40,25 @@
     }
 
     return { isReady, isAuthenticated }
+  }
+
+  function getProfile() {
+    const wpp = globalThis.WPP
+
+    try {
+      const wid = wpp?.conn?.wid
+      if (!wid) {
+        return { wid: '', pushname: '' }
+      }
+      const widStr = typeof wid === 'string' ? wid : String(wid?._serialized || wid?.user || wid)
+      const pushname = typeof wpp?.conn?.pushname === 'string'
+        ? wpp.conn.pushname
+        : (typeof wpp?.conn?.me?.pushname === 'string' ? wpp.conn.me.pushname : '')
+
+      return { wid: widStr, pushname: pushname || '' }
+    } catch (_e) {
+      return { wid: '', pushname: '' }
+    }
   }
 
   function getChats() {
@@ -71,18 +92,32 @@
         
         const mapped = sorted.slice(0, CHATS_LIMIT).map((chat) => {
           const raw = chat?.rawJson || {}
-          const contact = raw.contact || {}
+          const rawContact = raw.contact || {}
           
           const name = 
             chat?.name ||
-            contact.pushname ||
-            contact.notifyName ||
+            rawContact.pushname ||
+            rawContact.notifyName ||
             raw.notifyName ||
             ''
+
+          const xContact = chat.__x_contact || chat.contact || rawContact
+          const rawId = String(chat?.id?._serialized || chat?.id || '')
+          let phone = ''
+          if (xContact.__x_phoneNumber && xContact.__x_phoneNumber.user) {
+            phone = String(xContact.__x_phoneNumber.user)
+          } else if (xContact.phoneNumber) {
+            phone = String(xContact.phoneNumber)
+          } else if (xContact.id && xContact.id.server === 'c.us') {
+            phone = String(xContact.id.user)
+          } else if (rawId.includes('@c.us')) {
+            phone = rawId.replace('@c.us', '')
+          }
           
           return {
-            id: String(chat?.id?._serialized || chat?.id || ''),
+            id: rawId,
             name,
+            phone,
             isGroup: chat?.isGroup === true,
             isNewsletter: chat?.isNewsletter === true,
             lastMessage: chat?.lastMessage?.body || '',
@@ -804,6 +839,19 @@
           '*',
         )
       })
+    }
+
+    if (data.type === PROFILE_REQUEST_TYPE) {
+      const profile = getProfile()
+      window.postMessage(
+        {
+          type: PROFILE_RESPONSE_TYPE,
+          requestId: data.requestId,
+          wid: profile.wid,
+          pushname: profile.pushname,
+        },
+        '*',
+      )
     }
   })
 })()

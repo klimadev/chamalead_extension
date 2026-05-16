@@ -1,7 +1,14 @@
 import { type HumanizationConfig } from '@/features/whatsapp/humanization'
+import { openDatabase, recordSend, queryAnalytics, clearHistory, type SendRecord } from './db'
 
 const STORAGE_KEY = 'chamalead_bulk_send_state'
 const UPDATE_STORAGE_KEY = 'chamalead_update_info'
+
+openDatabase().then(() => {
+  console.log('[ChamaLead:bg] IndexedDB initialized')
+}).catch((error) => {
+  console.error('[ChamaLead:bg] Failed to initialize IndexedDB:', error)
+})
 
 function extractPlaceholders(text: string): string[] {
   const names: string[] = []
@@ -81,9 +88,28 @@ interface StoredBulkSendState {
   fallbackMessage?: string
   humanizationConfig?: HumanizationConfig
   nextSendAt?: number
+  campaignId?: string
 }
 
 let burstCount = 0
+let cachedProfileWid = ''
+
+async function fetchProfileWid(): Promise<string> {
+  try {
+    const tab = await findWhatsAppTab()
+    if (!tab?.id) {
+      console.warn('[ChamaLead:bg] Could not find WhatsApp tab for profile lookup')
+      return ''
+    }
+    const response: { wid?: string; pushname?: string } = await chrome.tabs.sendMessage(tab.id, {
+      type: 'CHAMALEAD_GET_PROFILE',
+    })
+    return response?.wid || ''
+  } catch (error) {
+    console.warn('[ChamaLead:bg] Failed to fetch profile WID:', error)
+    return ''
+  }
+}
 
 function getHumanizedDelay(_state: StoredBulkSendState, config: HumanizationConfig): number {
   if (config.burstMode && config.burstSize > 0 && burstCount >= config.burstSize - 1) {
@@ -281,6 +307,8 @@ async function processNextNumber(state: StoredBulkSendState): Promise<void> {
   const updated = { ...state, currentPhone: phone }
   await setStoredState(addLog(updated, `Enviando para ${phone} (${state.currentIndex + 1}/${state.total})...`))
 
+  const sendStartTime = Date.now()
+
   let result: { success: boolean; error?: string }
 
   if (state.messageType === 'audio' && state.audioBase64) {
@@ -321,6 +349,29 @@ async function processNextNumber(state: StoredBulkSendState): Promise<void> {
   } else {
     afterSend.failed++
     await setStoredState(addLog(afterSend, `✗ Falha para ${phone}: ${result.error}`))
+  }
+
+  try {
+    const sendRecord: SendRecord = {
+      id: crypto.randomUUID(),
+      campaign_id: state.campaignId || 'unknown',
+      profile_wid: cachedProfileWid,
+      target_phone: phone,
+      timestamp: sendStartTime,
+      success: result.success,
+      error_message: result.error,
+      duration_ms: Date.now() - sendStartTime,
+      message_type: state.messageType,
+      message_length: messageToSend.length,
+      humanization_profile: state.humanizationConfig?.profile,
+      humanization_min_delay: state.humanizationConfig?.minDelay,
+      humanization_max_delay: state.humanizationConfig?.maxDelay,
+      campaign_total: state.total,
+      campaign_position: state.currentIndex + 1,
+    }
+    recordSend(sendRecord)
+  } catch (_e) {
+    console.error('[ChamaLead:bg] Failed to record send to IndexedDB:', _e)
   }
 
   afterSend.currentIndex++
@@ -458,7 +509,13 @@ chrome.runtime.onMessage.addListener(
           recipients,
           fallbackMessage,
           humanizationConfig,
+          campaignId: crypto.randomUUID(),
         }
+
+        fetchProfileWid().then((wid) => {
+          cachedProfileWid = wid || 'unknown'
+          console.log('[ChamaLead:bg] Campaign profile WID:', cachedProfileWid)
+        })
 
         const withLog = addLog(state, `Iniciando envio para ${numbers.length} números...`)
 
@@ -611,6 +668,30 @@ chrome.runtime.onMessage.addListener(
         } else {
           sendResponse({ success: false, error: 'No release URL available' })
         }
+      })
+      return true
+    }
+
+    if (message?.type === 'CHAMALEAD_ANALYTICS_GET') {
+      queryAnalytics().then((result) => {
+        sendResponse(result)
+      }).catch((error) => {
+        console.error('[ChamaLead:bg] Analytics query error:', error)
+        sendResponse({
+          summary: { today: { sent: 0, failed: 0 }, week: { sent: 0, failed: 0 }, total: { sent: 0, failed: 0 } },
+          hourly: [],
+          recent_campaigns: [],
+        })
+      })
+      return true
+    }
+
+    if (message?.type === 'CHAMALEAD_ANALYTICS_CLEAR') {
+      clearHistory().then(() => {
+        sendResponse({ success: true })
+      }).catch((error) => {
+        console.error('[ChamaLead:bg] Analytics clear error:', error)
+        sendResponse({ success: false, error: String(error) })
       })
       return true
     }

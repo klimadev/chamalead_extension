@@ -5,6 +5,7 @@ import { type WppStatus } from './useWppStatus'
 export interface WppChat {
   id: string
   name: string
+  phone: string
   isGroup: boolean
   isNewsletter: boolean
   lastMessage: string

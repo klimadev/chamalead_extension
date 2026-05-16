@@ -1,4 +1,4 @@
-console.log('[ChamaLead] Content script loaded, version: 0.1.49')
+console.log('[ChamaLead] Content script loaded, version: 0.6.0')
 console.log('[ChamaLead] Current URL:', window.location.href)
 console.log('[ChamaLead] Document readyState:', document.readyState)
 
@@ -28,6 +28,8 @@ const PAGE_GROUPS_REQUEST_TYPE = 'CHAMALEAD_PAGE_GET_WPP_GROUPS'
 const PAGE_GROUPS_RESPONSE_TYPE = 'CHAMALEAD_PAGE_WPP_GROUPS'
 const PAGE_PARTICIPANTS_REQUEST_TYPE = 'CHAMALEAD_PAGE_GET_WPP_PARTICIPANTS'
 const PAGE_PARTICIPANTS_RESPONSE_TYPE = 'CHAMALEAD_PAGE_WPP_PARTICIPANTS'
+const PAGE_PROFILE_REQUEST_TYPE = 'CHAMALEAD_PAGE_GET_PROFILE'
+const PAGE_PROFILE_RESPONSE_TYPE = 'CHAMALEAD_PAGE_WPP_PROFILE'
 const PAGE_INSTAGRAM_PROFILE_REQUEST_TYPE = 'CHAMALEAD_PAGE_GET_IG_PROFILE'
 const PAGE_INSTAGRAM_PROFILE_RESPONSE_TYPE = 'CHAMALEAD_PAGE_IG_PROFILE_RESULT'
 const PAGE_PARTICIPANTS_TIMEOUT_MS = 15000
@@ -580,6 +582,38 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
     window.addEventListener('message', onResponse)
     window.postMessage({ type: PAGE_PARTICIPANTS_REQUEST_TYPE, requestId, groupId }, '*')
+
+    return true
+  }
+
+  if (isWhatsAppSite() && message?.type === 'CHAMALEAD_GET_PROFILE') {
+    if (!pageBridgeReady) {
+      injectPageBridge()
+    }
+
+    const requestId = crypto.randomUUID()
+    const timeoutId = window.setTimeout(() => {
+      window.removeEventListener('message', onProfileResponse)
+      sendResponse({ wid: '', pushname: '' })
+    }, PAGE_BRIDGE_TIMEOUT_MS)
+
+    function onProfileResponse(event: MessageEvent): void {
+      if (event.source !== window) return
+
+      const data = event.data as Record<string, unknown> | null
+      if (!data || data.type !== PAGE_PROFILE_RESPONSE_TYPE || data.requestId !== requestId) return
+
+      window.clearTimeout(timeoutId)
+      window.removeEventListener('message', onProfileResponse)
+
+      sendResponse({
+        wid: typeof data.wid === 'string' ? data.wid : '',
+        pushname: typeof data.pushname === 'string' ? data.pushname : '',
+      })
+    }
+
+    window.addEventListener('message', onProfileResponse)
+    window.postMessage({ type: PAGE_PROFILE_REQUEST_TYPE, requestId }, '*')
 
     return true
   }

@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { CampaignWizard, GroupContactExtraction, useWppStatus, useActiveSiteContext, useInstagramProfile, InstagramProfileDetails } from '@/features'
+import { CampaignWizard, GroupContactExtraction, useWppStatus, useActiveSiteContext, useInstagramProfile, InstagramProfileDetails, useAnalytics, AnalyticsDashboard } from '@/features'
 import { Card } from '@/ui'
 import { UpdatesTab } from './UpdatesTab'
 
 declare const EXT_VERSION: string
 
-type AppView = 'home' | 'campaign' | 'about' | 'updates' | 'group-extraction'
+type AppView = 'home' | 'campaign' | 'about' | 'updates' | 'group-extraction' | 'historic'
 
 interface CampaignSummary {
   total: number
@@ -61,7 +61,7 @@ function SiteUnsupported({ onOpenWhatsApp }: { onOpenWhatsApp: () => void }) {
   )
 }
 
-function HomeDashboard({ siteLabel, statusChip, wppReady, onStartCampaign, onViewAbout, onViewUpdates, onViewExtraction, campaignSummary }: {
+function HomeDashboard({ siteLabel, statusChip, wppReady, onStartCampaign, onViewAbout, onViewUpdates, onViewExtraction, onViewHistoric, campaignSummary }: {
   siteLabel: string
   statusChip: { text: string; variant: string }
   wppReady: boolean
@@ -69,6 +69,7 @@ function HomeDashboard({ siteLabel, statusChip, wppReady, onStartCampaign, onVie
   onViewAbout: () => void
   onViewUpdates: () => void
   onViewExtraction: () => void
+  onViewHistoric: () => void
   campaignSummary: CampaignSummary | null
 }) {
   const percent = campaignSummary && campaignSummary.total > 0
@@ -167,6 +168,9 @@ function HomeDashboard({ siteLabel, statusChip, wppReady, onStartCampaign, onVie
           <button type="button" className="home-footer-link" onClick={onViewExtraction}>
             📊 Extrair Contatos
           </button>
+          <button type="button" className="home-footer-link" onClick={onViewHistoric}>
+            📈 Historico
+          </button>
           <button type="button" className="home-footer-link" onClick={onViewUpdates}>
             📜 Atualizacoes
           </button>
@@ -248,6 +252,8 @@ export function PopupPage() {
   const { siteContext } = useActiveSiteContext()
   const { status: wppStatus } = useWppStatus(siteContext.state === 'resolved' && siteContext.isSupported)
   const { profileState, refresh } = useInstagramProfile(siteContext.state === 'resolved' && siteContext.site?.id === 'instagram')
+  const campaignActive = campaignSummary !== null && (campaignSummary.status === 'sending' || campaignSummary.status === 'paused')
+  const { analytics, loading: analyticsLoading, clear: clearAnalytics } = useAnalytics(campaignActive)
 
   const fetchCampaignState = useCallback(() => {
     chrome.runtime.sendMessage({ type: 'CHAMALEAD_BULK_SEND_GET_STATE' }, (response) => {
@@ -380,6 +386,23 @@ export function PopupPage() {
     return null
   }
 
+  if (view === 'historic') {
+    return (
+      <main className="wizard-page" role="main">
+        <div className="wizard">
+          <div className="wizard-header">
+            <button type="button" className="wizard-back-btn" onClick={() => setView('home')}>← Voltar</button>
+          </div>
+          <AnalyticsDashboard
+            analytics={analytics}
+            loading={analyticsLoading}
+            onClear={clearAnalytics}
+          />
+        </div>
+      </main>
+    )
+  }
+
   if (siteContext.site?.id === 'instagram') {
     return (
       <main className="page" role="main" style={{ width: 380 }}>
@@ -409,6 +432,7 @@ export function PopupPage() {
       onViewAbout={() => setView('about')}
       onViewUpdates={() => setView('updates')}
       onViewExtraction={() => setView('group-extraction')}
+      onViewHistoric={() => setView('historic')}
       campaignSummary={campaignSummary}
     />
   )
