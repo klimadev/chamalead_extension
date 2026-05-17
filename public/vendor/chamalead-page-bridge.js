@@ -189,7 +189,9 @@
       const rawId = String(p?.id?._serialized || p?.id || '')
       if (!rawId) continue
 
-      const contact = p.__x_contact || p.contact || {}
+      const raw = p?.rawJson || {}
+      const rawContact = raw.contact || {}
+      const contact = p.__x_contact || p.contact || rawContact || {}
       const isAdmin = p.isAdmin === true || p.isSuperAdmin === true
 
       const name = String(contact.name || contact.pushname || contact.shortName || '')
@@ -241,7 +243,11 @@
             })
             const rows = extractParticipantRows(models)
             if (rows.length > 0) {
-              return { participants: rows }
+              const hasPhones = rows.some(r => r.phone && r.phone.length > 0)
+              if (hasPhones) {
+                return { participants: rows }
+              }
+              console.log('[ChamaLead:bridge] Chat list participants have no phones, falling back to getParticipants')
             }
             console.log('[ChamaLead:bridge] Chat list returned 0 valid rows, falling back to getParticipants')
           }
